@@ -41,7 +41,9 @@ import {SelectProgram} from './kernels/select_webgpu';
 import {SliceProgram} from './kernels/slice_webgpu';
 import {TransposeProgram} from './kernels/transpose_webgpu';
 //import {TransposeNoBankConflict8x8Program} from './kernels/transpose_nobankconflict_8x8_webgpu';
+//import {TransposeNoBankConflictRectProgram} from './kernels/transpose_nobankconflict_rect_webgpu';
 //import {TransposeShared8x8Program} from './kernels/transpose_shared_8x8_webgpu';
+import {TransposeSharedProgram} from './kernels/transpose_rect4_webgpu';
 import * as unary_op from './kernels/unary_op_webgpu';
 import {UnaryOpProgram} from './kernels/unary_op_webgpu';
 import * as webgpu_program from './kernels/webgpu_program';
@@ -853,10 +855,14 @@ export class WebGPUBackend extends KernelBackend {
     if (this.shouldExecuteOnCPU([x])) {
       return this.cpuBackend.transpose(x, perm);
     }
-    if (x.shape[0] % 8 === 0 && x.shape[1] % 8 === 0) {
-        //const program = new TransposeNoBankConflict8x8Program(x.shape, perm);
+    if (x.shape[0] % 32 === 0 && x.shape[1] % 32 === 0) {
+        // const program = new TransposeNoBankConflict8x8Program(x.shape, perm);
         //const program = new TransposeShared8x8Program(x.shape, perm);
-        //return this.compileAndRun(program, [x]);
+        
+        //const program = new TransposeNoBankConflictRectProgram(x.shape, perm);
+        // TransposeNoBankConflictRectProgram
+        const program = new TransposeSharedProgram(x.shape, perm);
+        return this.compileAndRun(program, [x]);
     }
     const program = new TransposeProgram(x.shape, perm);
     return this.compileAndRun(program, [x]);
