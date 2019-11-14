@@ -852,7 +852,7 @@ export class WebGPUBackend extends KernelBackend {
     if (this.shouldExecuteOnCPU([x])) {
       return this.cpuBackend.transpose(x, perm);
     }
-    if (x.shape[0] >= 32 && x.shape[1] >= 32) {
+    if (x.shape.length === 2 && perm[0] === 1 && perm[1] === 0) {
         const program = new TransposeSharedProgram(x.shape, perm);
         return this.compileAndRun(program, [x]);
     }
