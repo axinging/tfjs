@@ -746,7 +746,6 @@ export class WebGPUBackend extends KernelBackend {
         convInfo.dilationHeight, convInfo.dilationWidth, convInfo.inHeight,
         convInfo.inWidth
       ];
-      console.log(dimensions + ',' + program);
       return this.compileAndRun(program, [x, filter], null, dimensions);
     }
     const program = new DepthwiseConv2DProgram(convInfo);

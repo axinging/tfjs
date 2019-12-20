@@ -34,9 +34,9 @@ export class DepthwiseConv2DSharedProgram implements WebGPUProgram {
     this.outputShape = convInfo.outShape;
     this.dispatchLayout = {x: [2], y: [1], z: [0, 3]};
     this.dispatch = computeDispatch(
-        this.dispatchLayout, this.outputShape, this.workGroupSize, this.workPerThread2);
+        this.dispatchLayout, this.outputShape, this.workGroupSize,
+        this.workPerThread2);
     const channelMul = convInfo.outChannels / convInfo.inChannels;
-    console.log("this.outputShape="+this.outputShape+",this.dispatch ="+this.dispatch);
     util.assert(
         convInfo.dataFormat === 'channelsLast',
         () => 'TODO: NCHW is unimplemented');
@@ -57,39 +57,45 @@ export class DepthwiseConv2DSharedProgram implements WebGPUProgram {
         int d1 = d2 / ${channelMul};
         int q = d2 - d1 * ${channelMul};
 
-        int xRCorner = xRCCorner.x;
-        int xCCorner = xRCCorner.y;
+        int xRCorner_orig = xRCCorner.x;
+        int xCCorner_orig = xRCCorner.y;
+        int xRCorner = 0;
+        int xCCorner = 0;
 
         for (int i = 0; i < 2; i ++) {
-          xRCorner = xRCorner + i;
+          xRCorner = xRCorner_orig + i;
           for (int j = 0; j < 2; j ++) {
-            xCCorner = xCCorner + j;
+            xCCorner = xCCorner_orig + j;
 
             // Convolve x(?, ?, d1) with w(:, :, d1, q) to get y(yR, yC, d2).
             // ? = to be determined. : = across all values in that axis.
             float dotProd = 0.0;
             // TODO(xing.xu): Flatten the two for loops and vec4 the operations.
+            //for (int wR = 0; wR < filterDims[0]; wR++) {
             for (int wR = 0; wR < filterDims[0]; wR++) {
               int xR = xRCorner + wR * dilation[0];
-    
+
               if (xR < 0 || xR >= inDims[0]) {
                 continue;
               }
-    
+
               for (int wC = 0; wC < filterDims[1]; wC++) {
                 int xC = xCCorner + wC * dilation[1];
-    
+
                 if (xC < 0 || xC >= inDims[1]) {
                   continue;
                 }
-    
+
                 float xVal = getX(batch, xR, xC, d1);
                 float wVal = getW(wR, wC, d1, q);
                 dotProd += xVal * wVal;
+                //dotProd  += xVal;// float(i*2+j);
+                //dotProd  = wVal;
               }
             }
+            //dotProd  = getW(i, j, d1, q);
             writeResult(batch, coords[1]+i, coords[2]+j, d2, dotProd);
-          }            
+          }
         }
       }
 
