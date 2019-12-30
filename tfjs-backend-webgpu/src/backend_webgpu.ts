@@ -20,11 +20,11 @@
 import './flags_webgpu';
 
 import {backend_util, DataStorage, DataType, engine, env, findBackend, KernelBackend, Rank, RecursiveArray, ShapeMap, slice_util, Tensor, Tensor2D, Tensor3D, Tensor4D, TimingInfo, util} from '@tensorflow/tfjs-core';
-import {Glslang} from '@webgpu/glslang/dist/web-devel/glslang.onefile';
 // TODO(xing.xu): use FusedConv2DConfig from backend_util:
 // https://github.com/tensorflow/tfjs/issues/2471
 // tslint:disable-next-line: no-imports-from-dist
 import {FusedConv2DConfig} from '@tensorflow/tfjs-core/dist/ops/fused_util';
+import {Glslang} from '@webgpu/glslang/dist/web-devel/glslang.onefile';
 
 import {BufferManager} from './buffer_manager';
 import {ArgMinMaxProgram} from './kernels/argminmax_webgpu';
@@ -34,6 +34,7 @@ import {ClipProgram} from './kernels/clip_webgpu';
 import {ConcatProgram} from './kernels/concat_webgpu';
 import {Conv2DMMProgram} from './kernels/conv2d_mm_webgpu';
 import {Conv2DNaiveProgram} from './kernels/conv2d_naive_webgpu';
+import {DepthwiseConv2DSharedProgram} from './kernels/depthwise_conv2d_shared_webgpu';
 import {DepthwiseConv2DProgram} from './kernels/depthwise_conv2d_webgpu';
 import {FillProgram} from './kernels/fill_webgpu';
 import {Im2ColProgram} from './kernels/im2col_webgpu';
@@ -741,13 +742,25 @@ export class WebGPUBackend extends KernelBackend {
   depthwiseConv2D(
       x: Tensor4D, filter: Tensor4D,
       convInfo: backend_util.Conv2DInfo): Tensor4D {
-    const program = new DepthwiseConv2DProgram(convInfo);
     const dimensions = [
       convInfo.filterHeight, convInfo.filterWidth, convInfo.padInfo.top,
       convInfo.padInfo.left, convInfo.strideHeight, convInfo.strideWidth,
       convInfo.dilationHeight, convInfo.dilationWidth, convInfo.inHeight,
       convInfo.inWidth
     ];
+    const program = new DepthwiseConv2DProgram(convInfo);
+    // const maxTexSize = ENV.get('WEBGL_MAX_TEXTURE_SIZE');
+    // if (convInfo.batchSize * convInfo.outHeight * convInfo.outWidth <=
+    //        maxTexSize &&
+    console.log(convInfo.outWidth);
+    //
+    if (convInfo.outWidth % 5 === 0) {
+      const program = new DepthwiseConv2DSharedProgram(convInfo);
+      return this.compileAndRun(program, [x, filter], null, dimensions);
+      // console.log(program);
+    }
+    //
+
     return this.compileAndRun(program, [x, filter], null, dimensions);
   }
 
