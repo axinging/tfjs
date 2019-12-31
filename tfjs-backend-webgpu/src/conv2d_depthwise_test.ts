@@ -83,7 +83,7 @@ describeWebGPU('depthwiseConv2D', () => {
     test_util.expectArraysClose(await result.data(), expected);
   });
 
-  it('input=1x5x5x1,f=3,s=1,d=1,p=same,chMul=1', async () => {
+  it('depthwisexx,input=1x5x5x1,f=3,s=1,d=1,p=same,chMul=1', async () => {
     const fSize = 3;
     const pad = 'same';
     const stride = 1;

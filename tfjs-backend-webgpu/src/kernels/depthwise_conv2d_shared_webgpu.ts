@@ -53,19 +53,32 @@ export class DepthwiseConv2DSharedProgram implements WebGPUProgram {
     const filterHeight = convInfo.filterHeight;
     const filterWidth = convInfo.filterWidth;
     const channelMul = convInfo.outChannels / convInfo.inChannels;
-    const FILTER_SIZE = 5;
+    const OUTWIDTH_DIVIDER = 5;
 
-    this.workGroupSize = [8 * channelMul, FILTER_SIZE, 1];
-    this.localGroupSize = [8 * channelMul, FILTER_SIZE];
+    this.workGroupSize = [8 * channelMul, OUTWIDTH_DIVIDER, 1];
+    this.localGroupSize = [8 * channelMul, OUTWIDTH_DIVIDER];
 
     this.outputShape = convInfo.outShape;
     this.dispatchLayout = {x: [2], y: [1], z: [0, 3]};
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         this.workPerThread2);
-    console.log('this.dispatch=' + this.dispatch);
+    console.log(
+        'this.dispatch=' + this.dispatch + ', this.localGroupSize[1] ' +
+        this.localGroupSize[1] + ', filterWidth=' + filterWidth);
 
+    const c_h = filterHeight;
+    const c_w = (this.localGroupSize[1] - 1) * strideWidth + filterWidth +
+        (filterWidth - 1) * (dilationWidth - 1);
 
+    console.log('CACHE_W=' + c_w);
+
+    const c_c = this.localGroupSize[0] < convInfo.outChannels ?
+        this.localGroupSize[0] / channelMul :
+        convInfo.inChannels;
+    console.log('CACHE_C=' + c_c);
+
+    console.log('CACHE_HWC=' + c_h * c_w * c_c);
     // outWidth should be divisible by localGroupSize[1]
     // const getCoords = generateGetCoordsFromFlatIndex(this.outputShape);
 
@@ -92,6 +105,15 @@ export class DepthwiseConv2DSharedProgram implements WebGPUProgram {
           firstThreadGlobalInvocationID.x;
       return getCoordsFromFlatIndex(index);//ivec4(r, c, d, d2);
     }
+
+    int getFirstThreadOutputIndex() {
+      ivec2 firstThreadGlobalInvocationID =
+          ivec2(gl_WorkGroupID * gl_WorkGroupSize);
+      int index = firstThreadGlobalInvocationID.y * ${this.outputShape[1]} +
+          firstThreadGlobalInvocationID.x;
+      return index;
+    }
+
     void writeResult(int batch, int row, int col, int chan, float value) {
       ivec4 coord = ivec4(batch, row, col, chan);
       if (coordsInBounds(coord, outShape)) {
@@ -130,9 +152,9 @@ export class DepthwiseConv2DSharedProgram implements WebGPUProgram {
       barrier();
 
       // Discard threads that are out of X bounds
-      if (int(gl_GlobalInvocationID.x) >= ${convInfo.outChannels}) {
-        return;
-      }
+      //if (int(gl_GlobalInvocationID.x) >= ${convInfo.outChannels}) {
+      //  return;
+      //}
 
       coords = getOutputCoords();
       ivec2 xRCCorner = coords.yz * strides - pads;
@@ -166,6 +188,7 @@ export class DepthwiseConv2DSharedProgram implements WebGPUProgram {
         }
       }
       //setOutput(dotProd);
+
       writeResult(batch, coords[1], coords[2], d2, dotProd);
     }
 
