@@ -2071,7 +2071,6 @@ export class MathBackendWebGL extends KernelBackend {
       program = new DepthwiseConvPacked2DProgram(convInfo);
       return this.compileAndRun(program, [x, filter]);
     }
-
     program = new DepthwiseConv2DProgram(convInfo);
     return this.compileAndRun(program, [x, filter]);
   }

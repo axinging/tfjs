@@ -21,7 +21,7 @@ import {Tensor} from '../tensor';
 import {Rank} from '../types';
 import {DataType, ShapeMap} from '../types';
 import {hasEncodingLoss, makeZerosTypedArray} from '../util';
-
+export {nonMaxSuppressionV3, nonMaxSuppressionV5} from './non_max_suppression_impl';
 import {KernelBackend} from './backend';
 
 // Utilities needed by backend consumers of tf-core.
