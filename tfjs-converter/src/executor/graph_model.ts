@@ -289,6 +289,7 @@ export class GraphModel implements InferenceModel {
     const result = this.executor.execute(inputs, outputs);
     return result.length > 1 ? result : result[0];
   }
+
   /**
    * Executes inference for the model for given input tensors in async
    * fashion, use this method when your model contains control flow ops.

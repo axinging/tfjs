@@ -27,6 +27,16 @@ describeWithFlags('resizeBilinear', ALL_ENVS, () => {
     expectArraysClose(
         await output.data(), [2, 2, 2, 10 / 3, 10 / 3, 10 / 3, 4, 4, 4]);
   });
+  it('resizebibdiv', async () => {
+    const input = tf.tensor3d(
+        [   
+        251,252,253,254,255,255,
+        255,255,255,255,255,255
+        ],  
+        [2, 3, 2]);
+    const output = input.div(255);
+    console.log("div:"+await output.data());
+  });
 
   it('5x5-bilinear, no change in shape', async () => {
     const image: tf.Tensor4D = tf.ones([1, 5, 5, 3]);
@@ -46,6 +56,33 @@ describeWithFlags('resizeBilinear', ALL_ENVS, () => {
     expectArraysClose(await output.data(), [2, 2, 2, 3, 3, 3, 4, 4, 4]);
   });
 
+  it('resizebibmul', async () => {
+    const offset=240.01;
+    const input = tf.tensor3d(
+        [
+          1.56324531+offset, 2.13817752+offset, 1.44398421+offset, 1.07632684+offset, 0.59306785+offset,
+          -0.36970865+offset, 1.62451879+offset, 1.8367334+offset, 1.13944798+offset, 2.01993218+offset,
+          2.01919952+offset, 2.67524054+offset
+        ],
+        [2, 3, 2]);
+    const output = input.resizeBilinear([4, 3], false).mul(0.00392156862745);
+    console.log("mul: "+await output.data());
+    expectArraysClose(await output.data(), [
+      1.5632453, 2.13817763, 1.44398415, 1.07632685, 0.59306782, -0.36970866,
+      1.59388208, 1.98745549, 1.2917161, 1.54812956, 1.30613375, 1.15276587,
+      1.62451875, 1.83673334, 1.13944793, 2.01993227, 2.01919961, 2.67524052,
+      1.62451875, 1.83673334, 1.13944793, 2.01993227, 2.01919961, 2.67524052]);
+  });
+  it('resizebibdiv', async () => {
+    const input = tf.tensor3d(
+        [
+        251,252,253,254,255,255,
+        255,255,255,255,255,255
+        ],
+        [2, 3, 2]);
+    const output = input.div(255);
+    console.log("div:"+await output.data());
+  });
   it('works when rows are copied', async () => {
     const input = tf.tensor3d(
         [
@@ -55,7 +92,7 @@ describeWithFlags('resizeBilinear', ALL_ENVS, () => {
         ],
         [2, 3, 2]);
     const output = input.resizeBilinear([4, 3], false);
-
+    console.log(await output.data());
     expectArraysClose(await output.data(), [
       1.5632453, 2.13817763, 1.44398415, 1.07632685, 0.59306782, -0.36970866,
       1.59388208, 1.98745549, 1.2917161, 1.54812956, 1.30613375, 1.15276587,
