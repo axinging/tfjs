@@ -340,10 +340,7 @@ export class WebGPUBackend extends KernelBackend {
 
   private getAndSavePipeline(
       key: string, getBinary: () => webgpu_program.WebGPUBinary) {
-    if (!(key in this.binaryCache)) {
-      this.binaryCache[key] = getBinary();
-    }
-    return this.binaryCache[key];
+    return this.binaryCache[key] = getBinary();
   }
 
   private makeOutputArray<T extends Tensor>(shape: number[], dtype: DataType):
@@ -742,8 +739,8 @@ export class WebGPUBackend extends KernelBackend {
       dy: Tensor4D, filter: Tensor4D,
       convInfo: backend_util.Conv2DInfo): Tensor4D {
     const dataId = this.write(null /*values*/, convInfo.outShape, dy.dtype);
-    const output =
-        engine().makeTensorFromDataId(dataId, convInfo.outShape, dy.dtype, this);
+    const output = engine().makeTensorFromDataId(
+        dataId, convInfo.outShape, dy.dtype, this);
     const pad = convInfo.padInfo.type === 'VALID' ?
         [0, 0] :
         convInfo.padInfo.type === 'SAME' ?
@@ -980,6 +977,16 @@ export class WebGPUBackend extends KernelBackend {
 
   sigmoid<T extends Tensor>(x: T): T {
     const program = new UnaryOpProgram(x.shape, unary_op.SIGMOID);
+    return this.compileAndRun(program, [x]);
+  }
+
+  square<T extends Tensor>(x: T): T {
+    const program = new UnaryOpProgram(x.shape, unary_op.SQUARE);
+    return this.compileAndRun(program, [x]);
+  }
+
+  neg<T extends Tensor>(x: T): T {
+    const program = new UnaryOpProgram(x.shape, unary_op.NEG);
     return this.compileAndRun(program, [x]);
   }
 
