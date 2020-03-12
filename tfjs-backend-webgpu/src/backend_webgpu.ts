@@ -33,6 +33,7 @@ import {Conv2DNaiveProgram} from './kernels/conv2d_naive_webgpu';
 import {CropAndResizeProgram} from './kernels/crop_and_resize_webgpu';
 import {DepthwiseConv2DProgram} from './kernels/depthwise_conv2d_webgpu';
 import {FillProgram} from './kernels/fill_webgpu';
+import {GatherProgram} from './kernels/gather_webgpu';
 import {Im2ColProgram} from './kernels/im2col_webgpu';
 import {MatMulPackedProgram} from './kernels/matmul_packed_webgpu';
 import {MatMulProgram} from './kernels/matmul_webgpu';
@@ -1056,6 +1057,14 @@ export class WebGPUBackend extends KernelBackend {
     }
     const program = new TransposeProgram(x.shape, perm);
     return this.compileAndRun(program, [x]);
+  }
+
+  gather<T extends Tensor>(x: T, indices: Tensor1D, axis: number): T {
+    if (this.shouldExecuteOnCPU([x, indices])) {
+      return this.cpuBackend.gather(x, indices, axis);
+    }
+    const program = new GatherProgram(x.shape, indices.size, axis);
+    return this.compileAndRun(program, [x, indices]);
   }
 
   batchMatMul(
