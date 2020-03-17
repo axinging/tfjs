@@ -171,7 +171,24 @@ export class GraphModel implements InferenceModel {
   /** @doc {heading: 'Models', subheading: 'Classes'} */
   predict(inputs: Tensor|Tensor[]|NamedTensorMap, config?: ModelPredictConfig):
       Tensor|Tensor[]|NamedTensorMap {
+    //return this.execute(inputs, "StatefulPartitionedCall/model/activation/Relu");
     return this.execute(inputs, this.outputNodes);
+  }
+
+  predictTrack(inputs: Tensor|Tensor[]|NamedTensorMap, config?: ModelPredictConfig):
+      Tensor|Tensor[]|NamedTensorMap {
+    //return this.execute(inputs, "StatefulPartitionedCall/model/activation/Relu");
+    //return this.executeTrack(inputs, this.outputNodes);
+    //return this.executeTrack(inputs, "StatefulPartitionedCall/model/batch_normalization_1/FusedBatchNormV3");
+    //return this.executeTrack(inputs, "StatefulPartitionedCall/model/output_handflag/Reshape");
+    //return this.executeTrack(inputs, "StatefulPartitionedCall/model/activation_31/Relu");
+    // StatefulPartitionedCall/model/activation_21/Relu
+    //return this.executeTrack(inputs, "StatefulPartitionedCall/model/activation_21/Relu");
+    //return this.executeTrack(inputs, "StatefulPartitionedCall/model/activation_25/Relu");
+    // return this.executeTrack(inputs, "StatefulPartitionedCall/model/activation_10/Relu");
+    return this.executeTrack(inputs, "StatefulPartitionedCall/model/activation_1/Relu");
+    //return this.executeTrack(inputs,"StatefulPartitionedCall/model/activation/Relu");
+    //return this.executeTrack(inputs,"StatefulPartitionedCall/model/depthwise_conv2d/depthwise");
   }
 
   private normalizeInputs(inputs: Tensor|Tensor[]|
@@ -220,6 +237,13 @@ export class GraphModel implements InferenceModel {
     const result = this.executor.execute(inputs, outputs);
     return result.length > 1 ? result : result[0];
   }
+  executeTrack(inputs: Tensor|Tensor[]|NamedTensorMap, outputs?: string|string[]):
+      Tensor|Tensor[] {
+    inputs = this.normalizeInputs(inputs);
+    outputs = this.normalizeOutputs(outputs);
+    const result = this.executor.executeTrack(inputs, outputs);
+    return result.length > 1 ? result : result[0];
+  }
   /**
    * Executes inference for the model for given input tensors in async
    * fashion, use this method when your model contains control flow ops.
@@ -242,6 +266,21 @@ export class GraphModel implements InferenceModel {
     outputs = this.normalizeOutputs(outputs);
     const result = await this.executor.executeAsync(inputs, outputs);
     return result.length > 1 ? result : result[0];
+  }
+
+  async predictAsync(inputs: Tensor|Tensor[]|NamedTensorMap, config?: ModelPredictConfig):
+      Promise<Tensor|Tensor[]|NamedTensorMap> {
+    // executionInfo used size= 351; : orderedNodes.length=200, 
+    //console.log("StatefulPartitionedCall/model/batch_normalization_40/FusedBatchNormV3/Mul");
+    //return this.executeAsync(inputs, "StatefulPartitionedCall/model/add/add");
+    // return this.executeAsync(inputs, "StatefulPartitionedCall/model/batch_normalization_42/FusedBatchNormV3/Offset");
+    //return this.executeAsync(inputs, "StatefulPartitionedCall/model/batch_normalization_40/FusedBatchNormV3/Mul");
+    // return this.executeAsync(inputs, "StatefulPartitionedCall/model/depthwise_conv2d/depthwise");
+    //return this.executeAsync(inputs, this.executor.graph.nodes["StatefulPartitionedCall/model/depthwise_conv2d/depthwise"]);
+
+
+    return this.executeAsync(inputs, "StatefulPartitionedCall/model/activation/Relu");
+    //return this.executeAsync(inputs, this.outputNodes);
   }
 
   private convertTensorMapToTensorsMap(map: NamedTensorMap): NamedTensorsMap {

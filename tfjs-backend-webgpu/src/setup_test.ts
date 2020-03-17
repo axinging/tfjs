@@ -180,7 +180,7 @@ const TEST_FILTERS: TestFilter[] = [
     excludes: [
       'valueAndGradients',     // sum not yet implemented.
       'gradient',              // sum not yet implemented.
-      'fused',                 // Not yet implemented.
+      //'fused',                 // Not yet implemented.
       '5D',                    // Rank 5 is not yet implemented.
       '6D',                    // Rank 5 is not yet implemented.
       'propagates NaNs',       // Arrays differ.
@@ -197,6 +197,8 @@ const TEST_FILTERS: TestFilter[] = [
     ]
   },
   {include: 'floor divide ', excludes: []},
+  {include: 'equal ', excludes: []},
+  {include: 'tensor', excludes: []},
   {
     include: 'fused',
     excludes: [
@@ -238,17 +240,17 @@ const TEST_FILTERS: TestFilter[] = [
     include: 'add ',
     excludes: [
       'complex',                         // No complex support yet.
-      'upcasts when dtypes dont match',  // Missing cast().
-      'accepts a tensor-like object',    // Timeout.
-      'broadcast inner dim of b',        // Arrays differ.
+      //'upcasts when dtypes dont match',  // Missing cast().
+      //'accepts a tensor-like object',    // Timeout.
+      //'broadcast inner dim of b',        // Arrays differ.
       '6D',                              // Rank 6 is not yet implemented.
       'add tensors with 0 in shape',     // Timeout.
       'gradient',                        // sum not yet implemented.
     ]
   },
-  {include: 'subtract ', excludes: []},
+  {include: 'sub ', excludes: []},
   {
-    include: 'slice ',
+    include: 'slice',
     excludes: [
       'square a sliced texture',                 // abs not yet implemented.
       'square a non-sliced texture',             // abs not not yet implemented.

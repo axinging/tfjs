@@ -15,23 +15,9 @@
  * =============================================================================
  */
 
-import './flags_webgpu';
-import * as tf from '@tensorflow/tfjs-core';
-import glslangInit from '@webgpu/glslang/dist/web-devel/glslang.onefile';
-import * as webgpu from './webgpu';
+import * as webgpu_util from './webgpu_util';
+export {WebGPUBackend} from './backend_webgpu';
+export {WebGPUProgram} from './kernels/webgpu_program';
+export {webgpu_util};
+// WebGL specific utils.
 
-import {WebGPUBackend} from './backend_webgpu';
-
-tf.registerBackend('webgpu', async () => {
-  const glslang = await glslangInit();
-  const gpuDescriptor: GPURequestAdapterOptions = {
-    powerPreference: tf.env().get('WEBGPU_USE_LOW_POWER_GPU') ?
-        'low-power' :
-        'high-performance'
-  };
-
-  const adapter = await navigator.gpu.requestAdapter(gpuDescriptor);
-  const device = await adapter.requestDevice({});
-  return new WebGPUBackend(device, glslang);
-}, 3 /*priority*/);
-export {webgpu};

@@ -51,7 +51,7 @@ export class Conv2DNaiveProgram implements WebGPUProgram {
                 }`;
       } else {
         activationSnippet = `
-                  float activation(float x) {
+                  float activation(float a) {
                     ${activation}
                   }
                 `;
@@ -103,8 +103,8 @@ export class Conv2DNaiveProgram implements WebGPUProgram {
           for (int col = 0; col < filterDims[1]; ++col) {
             for (int xChannel = 0; xChannel < xShape[3]; ++xChannel) {
               float v = readInp(batch,
-                  pad[0] + coords[1] * stride[0] + dilation[0] * row,
-                  pad[1] + coords[2] * stride[1] + dilation[1] * col,
+                  coords[1] * stride[0] + dilation[0] * row-pad[0],
+                  coords[2] * stride[1] + dilation[1] * col-pad[1],
                   xChannel);
               float f = readFilt(row, col, xChannel, outChannel);
               acc += v * f;

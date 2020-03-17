@@ -199,6 +199,9 @@ async function nonMaxSuppressionAsync_(
   const boxesAndScores = await Promise.all([$boxes.data(), $scores.data()]);
   const boxesVals = boxesAndScores[0];
   const scoresVals = boxesAndScores[1];
+  console.log("tfjsnonmax boxesVals="+boxesVals);
+  console.log("tfjsnonmax scoresVals="+scoresVals);
+
 
   const res = nonMaxSuppressionV3(
       boxesVals, scoresVals, maxOutputSize, iouThreshold, scoreThreshold);

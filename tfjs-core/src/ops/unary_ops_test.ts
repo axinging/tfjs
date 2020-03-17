@@ -481,6 +481,17 @@ describeWithFlags('sigmoid', ALL_ENVS, () => {
     expectArraysClose(await result.data(), expected);
   });
 
+
+  it('4Dxx', async () => {
+    const a = tf.ones([1,128,1,32]);
+    const result = tf.sigmoid(a);
+
+    const expected = [];
+    for (let i = 0; i < a.size; i++) {
+      expected[i] = 1 / (1 + Math.exp(-1.0));
+    }
+    expectArraysClose(await result.data(), expected);
+  });
   it('6D', async () => {
     const a = tf.ones([2, 2, 2, 2, 2, 2]);
     const result = tf.sigmoid(a);
