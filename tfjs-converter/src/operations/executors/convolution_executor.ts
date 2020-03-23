@@ -51,6 +51,7 @@ export const executeOp: InternalOpExecutor =
                   .toUpperCase();
           const dilations =
               getParamValue('dilations', node, tensorMap, context) as number[];
+          console.log("name="+node.name+",stride="+stride+",pad="+pad+",dilations="+dilations);
           return [tfc.conv2d(
               getParamValue('x', node, tensorMap, context) as tfc.Tensor3D |
                   tfc.Tensor4D,
@@ -138,6 +139,7 @@ export const executeOp: InternalOpExecutor =
               (getParamValue('dataFormat', node, tensorMap, context) as string)
                   .toUpperCase();
 
+          console.log("name="+node.name+",stride="+stride+",pad="+pad+",dilations="+dilations);
           return [tfc.depthwiseConv2d(
               getParamValue('input', node, tensorMap, context) as tfc.Tensor3D |
                   tfc.Tensor4D,

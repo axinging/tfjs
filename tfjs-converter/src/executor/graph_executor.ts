@@ -177,6 +177,7 @@ export class GraphExecutor {
                 `The execution of the op '${node.op}' returned a promise. ` +
                 `Please use model.executeAsync() instead.`);
           }
+          console.log("name="+node.name+",shape="+tensors[0].shape);
           tensorsMap[node.name] = tensors;
           this.checkTensorForDisposal(
               node.name, node, tensorsMap, context, tensorsToKeep, outputs,

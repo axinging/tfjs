@@ -27,6 +27,16 @@ describeWithFlags('resizeBilinear', ALL_ENVS, () => {
     expectArraysClose(
         await output.data(), [2, 2, 2, 10 / 3, 10 / 3, 10 / 3, 4, 4, 4]);
   });
+  it('resizebibdiv', async () => {
+    const input = tf.tensor3d(
+        [   
+        251,252,253,254,255,255,
+        255,255,255,255,255,255
+        ],  
+        [2, 3, 2]);
+    const output = input.div(255);
+    console.log("div:"+await output.data());
+  });
 
   it('5x5-bilinear, no change in shape', async () => {
     const image: tf.Tensor4D = tf.ones([1, 5, 5, 3]);

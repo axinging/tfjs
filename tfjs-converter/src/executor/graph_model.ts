@@ -178,16 +178,18 @@ export class GraphModel implements InferenceModel {
   predictTrack(inputs: Tensor|Tensor[]|NamedTensorMap, config?: ModelPredictConfig):
       Tensor|Tensor[]|NamedTensorMap {
     //return this.execute(inputs, "StatefulPartitionedCall/model/activation/Relu");
-    //return this.executeTrack(inputs, this.outputNodes);
+    return this.executeTrack(inputs, this.outputNodes);
     //return this.executeTrack(inputs, "StatefulPartitionedCall/model/batch_normalization_1/FusedBatchNormV3");
     //return this.executeTrack(inputs, "StatefulPartitionedCall/model/output_handflag/Reshape");
     //return this.executeTrack(inputs, "StatefulPartitionedCall/model/activation_31/Relu");
     // StatefulPartitionedCall/model/activation_21/Relu
     //return this.executeTrack(inputs, "StatefulPartitionedCall/model/activation_21/Relu");
     //return this.executeTrack(inputs, "StatefulPartitionedCall/model/activation_25/Relu");
-    // return this.executeTrack(inputs, "StatefulPartitionedCall/model/activation_10/Relu");
-    return this.executeTrack(inputs, "StatefulPartitionedCall/model/activation_1/Relu");
-    //return this.executeTrack(inputs,"StatefulPartitionedCall/model/activation/Relu");
+    //return this.executeTrack(inputs, "StatefulPartitionedCall/model/activation_8/Relu");
+    //return this.executeTrack(inputs, "StatefulPartitionedCall/model/depthwise_conv2d_9/depthwise");
+    //return this.executeTrack(inputs, "StatefulPartitionedCall/model/max_pooling2d_1/MaxPool");
+    //return this.executeTrack(inputs, "StatefulPartitionedCall/model/depthwise_conv2d_17/depthwise");
+    //return this.executeTrack(inputs,"StatefulPartitionedCall/model/batch_normalization_10/FusedBatchNormV3");
     //return this.executeTrack(inputs,"StatefulPartitionedCall/model/depthwise_conv2d/depthwise");
   }
 

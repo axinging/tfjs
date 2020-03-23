@@ -898,7 +898,7 @@ export class WebGPUBackend extends KernelBackend {
     FusedConv2D      4D 1,128,128,32 	x: 4D 1,256,256,3 filter: 4D 3,3,3,32 bias: 1D 32 
 pad=-1,-1, dimensions=3,3,-1,-1,2,2,1,1
     */
-    console.log("pad="+pad+", dimensions="+dimensions+", convInfo.padInfo.type="+convInfo.padInfo.type);
+    //console.log("pad="+pad+", dimensions="+dimensions+", convInfo.padInfo.type="+convInfo.padInfo.type);
     const inputs: Tensor[] = [input, filter];
     if (hasBias) {
       inputs.push(bias);
