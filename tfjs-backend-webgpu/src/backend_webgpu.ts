@@ -1060,9 +1060,6 @@ export class WebGPUBackend extends KernelBackend {
   }
 
   gather<T extends Tensor>(x: T, indices: Tensor1D, axis: number): T {
-    if (this.shouldExecuteOnCPU([x, indices])) {
-      return this.cpuBackend.gather(x, indices, axis);
-    }
     const program = new GatherProgram(x.shape, indices.size, axis);
     return this.compileAndRun(program, [x, indices]);
   }
