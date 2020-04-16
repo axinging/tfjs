@@ -369,7 +369,10 @@ export class WebGPUBackend extends KernelBackend {
 
   private getAndSavePipeline(
       key: string, getBinary: () => webgpu_program.WebGPUBinary) {
-    return this.binaryCache[key] = getBinary();
+   if (!(key in this.binaryCache)) {
+     this.binaryCache[key] = getBinary();
+   }
+   return this.binaryCache[key];
   }
 
   private makeOutputArray<T extends Tensor>(shape: number[], dtype: DataType):
@@ -481,8 +484,6 @@ export class WebGPUBackend extends KernelBackend {
     const uniformData = new Int32Array(dimUniforms);
     const uniforms = this.makeUniforms(uniformData);
 
-    const key =
-        webgpu_program.makeShaderKey(program, bufferShapes.map(d => d.length));
     const inputsData = inputs.map((input: Tensor, i: number) => {
       this.uploadToGPU(input.dataId);
 
@@ -495,6 +496,9 @@ export class WebGPUBackend extends KernelBackend {
       };
     });
     this.uploadToGPU(output.dataId);
+    const bufferTypes = inputsData.map(d => d.dtype).concat(output.dtype);
+    const key =
+        webgpu_program.makeShaderKey(program, bufferShapes, bufferTypes);
     const {bindGroupLayout, pipeline} = this.getAndSavePipeline(key, () => {
       return webgpu_program.compileProgram(
           this.glslang, this.device, program, inputsData, output, uniforms);
@@ -854,15 +858,9 @@ export class WebGPUBackend extends KernelBackend {
       program = new Conv2DNaiveProgram(
           convInfo, hasBias, fusedActivation, hasPreluActivationWeights);
     } else {
-     //
-      program = new Conv2DNaiveProgram(
-        convInfo, hasBias, fusedActivation,
-        hasPreluActivationWeights);
-      /*
       program = new Conv2DMMProgram(
           convInfo, workPerThread, hasBias, fusedActivation,
           hasPreluActivationWeights);
-          */
     }
 
     const pad = [convInfo.padInfo.top, convInfo.padInfo.left];

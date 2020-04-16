@@ -102,7 +102,7 @@ export class Conv2DMMProgram implements WebGPUProgram {
       applyActivationSnippet = `value = activation(value);`;
     }
 
-    const addBiasSnippet = addBias ? 'value += getBiasAtOutCoords();' : '';
+    const addBiasSnippet = addBias ? 'value += getBiasAtOutCoords(ivec4(0,0,0,col));' : '';
     if (addBias) {
       this.variableNames.push('bias');
     }
