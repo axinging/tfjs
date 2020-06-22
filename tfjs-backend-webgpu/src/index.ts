@@ -33,7 +33,9 @@ tf.registerBackend('webgpu', async () => {
   };
 
   const adapter = await navigator.gpu.requestAdapter(gpuDescriptor);
-  const device = await adapter.requestDevice({});
+  const device = await adapter.requestDevice({
+    extensions: ['timestamp-query'] as Iterable<GPUExtensionName>,
+  });
   return new WebGPUBackend(device, glslang);
 }, 3 /*priority*/);
 

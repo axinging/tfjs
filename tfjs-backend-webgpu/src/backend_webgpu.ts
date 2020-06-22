@@ -381,9 +381,34 @@ export class WebGPUBackend extends KernelBackend {
     return query;
   }
 
-  async getQueryTime(query: CPUTimerQuery): Promise<number> {
+  async getQueryTime2(query: CPUTimerQuery): Promise<number> {
     const timerQuery = query;
     return timerQuery.endMs - timerQuery.startMs;
+  }
+
+  async getQueryTime(dstBuffer: GPUBuffer) {
+    const dst = this.device.createBuffer({
+      size: 16,
+      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
+
+    const commandEncoder = this.device.createCommandEncoder();
+    commandEncoder.copyBufferToBuffer(dstBuffer, 0, dst, 0, 16);
+    this.device.defaultQueue.submit([commandEncoder.finish()]);
+
+    // @ts-ignore
+    const arrayBuf = new BigUint64Array(await dst.mapReadAsync());
+
+    // Time delta is a gpu ticks, we need convert to time using gpu frequency
+    const timeDelta = arrayBuf[1] - arrayBuf[0];
+    // gpu frequency can be got from console in chromium. For Winodws on
+    // UHD630/RX560 = 25000000;
+    const frequency = 25000000;
+    // 1 ms = 1000 000 ns
+    const timeInMS = Number(timeDelta) * 1000 / frequency;
+    console.log(timeInMS + 'ms');
+    dstBuffer.destroy();
+    return timeInMS;
   }
 
   private uploadToGPU(dataId: DataId): void {
@@ -488,11 +513,16 @@ export class WebGPUBackend extends KernelBackend {
     });
 
     const shouldTimeProgram = this.activeTimers != null;
-    let query: CPUTimerQuery;
-    if (shouldTimeProgram) {
-      query = this.startTimer();
-    }
 
+    const querySet = this.device.createQuerySet({
+      type: 'timestamp',
+      count: 2,
+    });
+
+    const dstBuffer = this.device.createBuffer({
+      size: 16,
+      usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
+    });
     // Creating bind groups on the fly should never be a bottleneck.
     const bg = webgpu_program.makeBindGroup(
         this.device, bindGroupLayout, inputs.map(t => this.tensorToBinding(t)),
@@ -500,11 +530,20 @@ export class WebGPUBackend extends KernelBackend {
 
     const encoder = this.device.createCommandEncoder({});
     const pass = encoder.beginComputePass();
+    if (shouldTimeProgram) {
+      pass.writeTimestamp(querySet, 0);
+    }
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, bg);
     pass.dispatch(
         program.dispatch[0], program.dispatch[1], program.dispatch[2]);
+    if (shouldTimeProgram) {
+      pass.writeTimestamp(querySet, 1);
+    }
     pass.endPass();
+    if (shouldTimeProgram) {
+      encoder.resolveQuerySet(querySet, 0, 2, dstBuffer, 0);
+    }
     this.commandQueue.push(encoder);
 
     inputs.forEach(input => {
@@ -526,9 +565,11 @@ export class WebGPUBackend extends KernelBackend {
     }
 
     if (shouldTimeProgram) {
-      query = this.endTimer(query);
-      this.activeTimers.push(
-          {name: program.constructor.name, query: this.getQueryTime(query)});
+      // query = this.endTimer(query);
+      this.activeTimers.push({
+        name: program.constructor.name,
+        query: this.getQueryTime(dstBuffer)
+      });
     }
     return output as {} as K;
   }
