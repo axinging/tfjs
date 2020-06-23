@@ -381,23 +381,18 @@ export class WebGPUBackend extends KernelBackend {
     return query;
   }
 
-  async getQueryTime2(query: CPUTimerQuery): Promise<number> {
-    const timerQuery = query;
-    return timerQuery.endMs - timerQuery.startMs;
-  }
-
   async getQueryTime(dstBuffer: GPUBuffer) {
-    const dst = this.device.createBuffer({
+    const dstStagingBuffer = this.device.createBuffer({
       size: 16,
       usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
     });
 
     const commandEncoder = this.device.createCommandEncoder();
-    commandEncoder.copyBufferToBuffer(dstBuffer, 0, dst, 0, 16);
+    commandEncoder.copyBufferToBuffer(dstBuffer, 0, dstStagingBuffer, 0, 16);
     this.device.defaultQueue.submit([commandEncoder.finish()]);
 
     // @ts-ignore
-    const arrayBuf = new BigUint64Array(await dst.mapReadAsync());
+    const arrayBuf = new BigUint64Array(await dstStagingBuffer.mapReadAsync());
 
     // Time delta is a gpu ticks, we need convert to time using gpu frequency
     const timeDelta = arrayBuf[1] - arrayBuf[0];
@@ -407,6 +402,7 @@ export class WebGPUBackend extends KernelBackend {
     // 1 ms = 1000 000 ns
     const timeInMS = Number(timeDelta) * 1000 / frequency;
     console.log(timeInMS + 'ms');
+    dstStagingBuffer.destroy();
     dstBuffer.destroy();
     return timeInMS;
   }
