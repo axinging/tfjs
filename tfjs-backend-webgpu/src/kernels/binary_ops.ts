@@ -15,7 +15,7 @@
  * =============================================================================
  */
 
-import {util} from '@tensorflow/tfjs-core';
+// import {util} from '@tensorflow/tfjs-core';
 import {BinaryOpSharedProgram} from './binary_op_shared_webgpu';
 import {BinaryOpVec4Program} from './binary_op_vec4_webgpu';
 import {BinaryOpProgram} from './binary_op_webgpu';
@@ -121,9 +121,11 @@ export function getBinaryOpString(
 }
 
 export function getBinaryProgram(
-    op: BinaryOpType, aShape: number[], bShape: number[]) {
-  const useVec4 =
-      util.arraysEqual(aShape, bShape) && util.sizeFromShape(aShape) % 4 === 0;
+    op: BinaryOpType, aShape: number[], bShape: number[], useVec4 = false) {
+  // const useVec4 = true;
+  /*
+util.arraysEqual(aShape, bShape) && util.sizeFromShape(aShape) % 4 === 0;
+*/
   const opStr = getBinaryOpString(op, useVec4);
   if (useVec4) {
     return new BinaryOpVec4Program(opStr, aShape, bShape);

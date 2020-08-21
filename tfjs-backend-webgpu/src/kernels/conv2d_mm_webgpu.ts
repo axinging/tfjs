@@ -36,7 +36,8 @@ export class Conv2DMMProgram implements WebGPUProgram {
 
   constructor(
       convInfo: backend_util.Conv2DInfo, workPerThread: number, addBias = false,
-      activation: string = null, hasPreluActivationWeights = false) {
+      activation: string = null, hasPreluActivationWeights = false,
+      useTexture = true) {
     this.outputShape = convInfo.outShape;
 
     util.assert(
@@ -72,16 +73,28 @@ export class Conv2DMMProgram implements WebGPUProgram {
     const dimInner =
         convInfo.filterHeight * convInfo.filterWidth * convInfo.inChannels;
     const fitA = tilesFitEvenlyIntoShape(tileSizeA, [dimAOuter, dimInner]);
-    const sampleA = fitA ?
-        `x[getFlatIndex(coord, ${getShapeCoords(convInfo.inShape)})]` :
-        `coordsInBounds(coord, ${
-            getShapeCoords(convInfo.inShape)}) ? x[getFlatIndex(coord, ${
-            getShapeCoords(convInfo.inShape)})] : 0`;
     const fitB = tilesFitEvenlyIntoShape(tileSizeB, [dimInner, dimBOuter]);
-    const sampleB = fitB ?
-        `W[row * dimBOuter + col]` :
-        `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
-        W[row * dimBOuter + col] : 0`;
+    var sampleA, sampleB, sampleResult;
+    console.log('useTexture=' + useTexture);
+    if (useTexture) {
+      sampleA = `getX(coord[0],coord[1], coord[2], coord[3])`;
+      sampleB = `imageLoad(W, ivec2(col,row)).r`;
+      sampleResult =
+          `setOutput(outCoord[0],outCoord[1],outCoord[2],outCoord[3], value)`;
+    } else {
+      sampleA = fitA ?
+          `x[getFlatIndex(coord, ${getShapeCoords(convInfo.inShape)})]` :
+          `coordsInBounds(coord, ${
+              getShapeCoords(convInfo.inShape)}) ? x[getFlatIndex(coord, ${
+              getShapeCoords(convInfo.inShape)})] : 0`;
+
+      sampleB = fitB ?
+          `W[row * dimBOuter + col]` :
+          `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
+             W[row * dimBOuter + col] : 0`;
+      sampleResult = ` result[getFlatIndex(outCoord, ${
+          getShapeCoords(this.outputShape)})] = value`;
+    }
 
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
@@ -128,15 +141,17 @@ export class Conv2DMMProgram implements WebGPUProgram {
           int r = int(row), c = int(col);
           int outRow = r / ${this.outputShape[2]};
           int outCol = r % ${this.outputShape[2]};
-
+		  
+          // filter_W = WROW, filter_H = WCol
           int WRow = c / (filterDims[1] * ${convInfo.inShape[3]});
           int WCol = (c / ${convInfo.inShape[3]}) % filterDims[1];
-
           ivec4 coord = ivec4(
               batch,
               outRow * stride[0] + dilation[0] * WRow - pad[0],
               outCol * stride[1] + dilation[1] * WCol - pad[1],
               c % ${convInfo.inShape[3]});
+
+          // TODO(texture): For 4D(if (texNumC === stride2) only:
           return ${sampleA};
         }
 
@@ -152,9 +167,8 @@ export class Conv2DMMProgram implements WebGPUProgram {
               col);
           ${addBiasSnippet}
           ${applyActivationSnippet}
-          result[getFlatIndex(outCoord, ${
-        getShapeCoords(this.outputShape)})] = value;
-        }
+          ${sampleResult};
+    }
 
         void main() {
           batch = int(gl_GlobalInvocationID.z);
@@ -163,6 +177,8 @@ export class Conv2DMMProgram implements WebGPUProgram {
         }
       `;
     this.shaderKey = `conv2dmm'${elementsPerThread.join('')}${fitA}${fitB}${
-        addBiasSnippet}${activationSnippet}`;
+        addBiasSnippet}${activationSnippet}${convInfo.inShape}${
+        convInfo.outShape}${convInfo.filterShape}`;
+    console.log(this.shaderKey);
   }
 }

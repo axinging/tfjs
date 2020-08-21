@@ -130,7 +130,8 @@ export class MatMulPackedProgram implements WebGPUProgram {
 
   constructor(
       aShape: [number, number, number], outputShape: [number, number, number],
-      workPerThread: number, transposeA = false, transposeB = false) {
+      workPerThread: number, transposeA = false, transposeB = false,
+      useTexture = true) {
     const dimInner = transposeA ? aShape[1] : aShape[2];
     const dimBOuter = outputShape[2];
     const bShape = transposeB ? [outputShape[0], dimBOuter, dimInner] :
@@ -166,33 +167,68 @@ export class MatMulPackedProgram implements WebGPUProgram {
     const batchASize = aShape[1] * aShape[2];
     const batchBSize = bShape[1] * bShape[2];
     let sampleA;
-
-    if (transposeA === false) {
-      sampleA = fitA ?
-          `A[batch * ${batchASize} + row * dimInner + col]` :
-          `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
-            A[batch * ${batchASize} + row * dimInner + col] : 0`;
+    if (useTexture) {
+      // TODO(texture): https://github.com/tensorflow/tfjs/pull/4079
+      if (transposeA === false) {
+        sampleA = fitA ?
+            `imageLoad(A, ivec2(col,row)).r` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
+            imageLoad(A, ivec2(col,row)).r : 0`;
+      } else {
+        sampleA = fitA ?
+            `imageLoad(A, ivec2(row, col)).r` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
+          imageLoad(A, ivec2(row, col)).r : 0`;
+      }
     } else {
-      sampleA = fitA ?
-          `A[batch * ${batchASize} + col * dimAOuter + row]` :
-          `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
-            A[batch* ${batchASize} + col * dimAOuter + row] : 0`;
+      if (transposeA === false) {
+        sampleA = fitA ?
+            `A[batch * ${batchASize} + row * dimInner + col]` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
+              A[batch * ${batchASize} + row * dimInner + col] : 0`;
+      } else {
+        sampleA = fitA ?
+            `A[batch * ${batchASize} + col * dimAOuter + row]` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
+              A[batch* ${batchASize} + col * dimAOuter + row] : 0`;
+      }
     }
 
     const fitB = tilesFitEvenlyIntoShape(tileSizeB, bShape.slice(1));
     let sampleB;
-    if (transposeB === false) {
-      sampleB = fitB ?
-          `B[batch * ${batchBSize} + row * dimBOuter + col]` :
-          `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
-            B[batch * ${batchBSize} + row * dimBOuter + col] : 0`;
+    if (useTexture) {
+      if (transposeB === false) {
+        sampleB = fitB ?
+            `imageLoad(B, ivec2(col,row)).r` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
+          imageLoad(B, ivec2(col,row)).r : 0`;
+      } else {
+        sampleB = fitB ?
+            `imageLoad(B, ivec2(row, col)).r` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
+          imageLoad(B, ivec2(row, col)).r : 0`;
+      }
     } else {
-      sampleB = fitB ?
-          `B[batch * ${batchBSize} + col * dimInner + row]` :
-          `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
-            B[batch * ${batchBSize} + col * dimInner + row] : 0`;
+      if (transposeB === false) {
+        sampleB = fitB ?
+            `B[batch * ${batchBSize} + row * dimBOuter + col]` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
+              B[batch * ${batchBSize} + row * dimBOuter + col] : 0`;
+      } else {
+        sampleB = fitB ?
+            `B[batch * ${batchBSize} + col * dimInner + row]` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
+              B[batch * ${batchBSize} + col * dimInner + row] : 0`;
+      }
     }
 
+    let sampleResult;
+    if (useTexture) {
+      sampleResult =
+          'imageStore(result, ivec2(col, row), vec4(value, 0.0, 0.0, 0.0))';
+    } else {
+      sampleResult = 'setOutput(batch, row, col, value)';
+    }
     this.userCode = `
       int dimAOuter = ${transposeA === true ? `${aShape[2]}` : `${aShape[1]}`};
       int dimInner = ${transposeA === true ? `${aShape[1]}` : `${aShape[2]}`};
@@ -211,7 +247,7 @@ export class MatMulPackedProgram implements WebGPUProgram {
       }
 
       void mm_write(int row, int col, float value) {
-        setOutput(batch, row, col, value);
+        ${sampleResult};
       }
 
       void main() {
