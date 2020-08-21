@@ -119,7 +119,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
 
   constructor(
       aShape: [number, number, number], outputShape: [number, number, number],
-      workPerThread: number) {
+      workPerThread: number, usePackedTexture = false) {
     const dimInner = aShape[2];
     const dimBOuter = outputShape[2];
     const bShape = [outputShape[0], dimInner, dimBOuter];
@@ -129,7 +129,6 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [vecSize, workPerThread, 1]);
-
     this.workPerThread = workPerThread;
     const tileAOuter = this.workGroupSize[1] * workPerThread;
     const tileBOuter = this.workGroupSize[0] * vecSize;
@@ -141,23 +140,69 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     const batchASize = aShape[1] * aShape[2] / vecSize;
     const batchBSize = bShape[1] * bShape[2] / vecSize;
     const batchSize = outputShape[1] * outputShape[2] / vecSize;
-    const sampleA = fitA ?
-        `A[batch * ${batchASize} + row * dimInner + col]` :
-        `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
+    let sampleA;
+    const transposeA = false;
+    const transposeB = false;
+    const glslZERO = 'vec4(0.0, 0.0, 0.0, 0.0)';
+    if (usePackedTexture) {
+      // TODO(texture): https://github.com/tensorflow/tfjs/pull/4079
+      if (transposeA === false) {
+        // TODO(tetxure): fitA is not verified!
+        sampleA = fitA ?
+            `imageLoad(A, ivec2(col * ${vecSize}, row))` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
+            getA(batch, row, col * ${vecSize}): ${glslZERO}`;
+      } else {
+        sampleA = fitA ?
+            `imageLoad(A, ivec2(row, col))` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
+            imageLoad(A, ivec2(row, col)) : ${glslZERO}`;
+      }
+    } else {
+      sampleA = fitA ?
+          `A[batch * ${batchASize} + row * dimInner + col]` :
+          `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
             A[batch * ${
-            batchASize} + row * dimInner + col] : vec4(0.0, 0.0, 0.0, 0.0)`;
+              batchASize} + row * dimInner + col] : vec4(0.0, 0.0, 0.0, 0.0)`;
+    }
+
 
     const fitB = tilesFitEvenlyIntoShape(tileSizeB, bShape.slice(1));
-    const sampleB = fitB ?
-        `B[batch * ${batchBSize} + row * dimBOuter + col]` :
-        `coordsInBounds(ivec2(row, col), ivec2(dimInner * 4, dimBOuter)) ?
+
+    let sampleB;
+    if (usePackedTexture) {
+      if (transposeB === false) {
+        // TODO(tetxure): fitB is not verified!
+        sampleB = fitB ?
+            `imageLoad(B, ivec2(col * ${vecSize}, row))` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimInner* 4, dimBOuter)) ?
+            getB(batch, row, col * ${vecSize}): ${glslZERO}`;
+      } else {
+        sampleB = fitB ?
+            `imageLoad(B, ivec2(row, col))` :
+            `coordsInBounds(ivec2(row, col), ivec2(dimInner* 4, dimBOuter)) ?
+          imageLoad(B, ivec2(row, col)) : ${glslZERO}`;
+      }
+    } else {
+      sampleB = fitB ?
+          `B[batch * ${batchBSize} + row * dimBOuter + col]` :
+          `coordsInBounds(ivec2(row, col), ivec2(dimInner * 4, dimBOuter)) ?
             B[batch * ${
-            batchBSize} + row * dimBOuter + col] : vec4(0.0, 0.0, 0.0, 0.0)`;
+              batchBSize} + row * dimBOuter + col] : vec4(0.0, 0.0, 0.0, 0.0)`;
+    }
+
+    let sampleResult;
+    if (usePackedTexture) {
+      sampleResult = `setOutput(batch, row, col * ${vecSize}, value)`;
+    } else {
+      sampleResult =
+          `result[batch * ${batchSize} + row * dimBOuter + col] = value`;
+    }
 
     this.userCode = `
       int dimAOuter = ${aShape[1]};
-      int dimInner = ${aShape[2] / vecSize};
-      int dimBOuter = ${bShape[2] / vecSize};
+      int dimInner = ${Math.ceil(aShape[2] / vecSize)};
+      int dimBOuter = ${Math.ceil(bShape[2] / vecSize)};
       int batch;
 
       ${makeMatMulPackedVec4Source([
@@ -175,7 +220,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
       void mm_write(int row, int col, vec4 value) {
         if (row < dimAOuter && col < dimBOuter)
         {
-          result[batch * ${batchSize} + row * dimBOuter + col] = value;
+          ${sampleResult};
         }
       }
 

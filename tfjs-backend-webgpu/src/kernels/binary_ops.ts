@@ -121,12 +121,14 @@ export function getBinaryOpString(
 }
 
 export function getBinaryProgram(
-    op: BinaryOpType, aShape: number[], bShape: number[]) {
+    op: BinaryOpType, aShape: number[], bShape: number[],
+    usePackedTexture = false) {
   const useVec4 =
       util.arraysEqual(aShape, bShape) && util.sizeFromShape(aShape) % 4 === 0;
+
   const opStr = getBinaryOpString(op, useVec4);
-  if (useVec4) {
-    return new BinaryOpVec4Program(opStr, aShape, bShape);
+  if (useVec4 || usePackedTexture) {
+    return new BinaryOpVec4Program(opStr, aShape, bShape, usePackedTexture);
   }
   const useSharedMemoryWithA =
       aShape.length === 1 && bShape.length > 1 && aShape[0] < 2048;

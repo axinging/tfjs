@@ -29,6 +29,7 @@ import {BinaryOpType, getBinaryOpString, getBinaryProgram} from './kernels/binar
 import {ClipVec4Program} from './kernels/clip_vec4_webgpu';
 import {ClipProgram} from './kernels/clip_webgpu';
 import {ConcatProgram} from './kernels/concat_webgpu';
+import {Conv2DMMVec4Size4Program} from './kernels/conv2d_mm_vec4_size4_webgpu';
 import {Conv2DMMVec4Program} from './kernels/conv2d_mm_vec4_webgpu';
 import {Conv2DMMProgram} from './kernels/conv2d_mm_webgpu';
 import {Conv2DNaiveProgram} from './kernels/conv2d_naive_webgpu';
@@ -50,10 +51,15 @@ import {SliceProgram} from './kernels/slice_webgpu';
 import {StridedSliceProgram} from './kernels/strided_slice_webgpu';
 import {TransposeSharedProgram} from './kernels/transpose_shared_webgpu';
 import {TransposeProgram} from './kernels/transpose_webgpu';
+import * as unary_op_vec4 from './kernels/unary_op_vec4_webgpu';
+import {UnaryOpVec4Program} from './kernels/unary_op_vec4_webgpu';
 import * as unary_op from './kernels/unary_op_webgpu';
 import {UnaryOpProgram} from './kernels/unary_op_webgpu';
 import * as webgpu_program from './kernels/webgpu_program';
 import {WebGPUBinary} from './kernels/webgpu_program';
+import {ShapeInfo} from './shader_preprocessor_texture';
+import {TextureManager} from './texture_manager';
+import * as webgpu_texture_util from './webgpu_texture_util';
 import * as webgpu_util from './webgpu_util';
 
 export interface WebGPUMemoryInfo extends backend_util.MemoryInfo {
@@ -65,7 +71,12 @@ export interface WebGPUMemoryInfo extends backend_util.MemoryInfo {
 type BufferInfo = {
   byteSize: number,
   usage: GPUBufferUsageFlags,
-  buffer?: GPUBuffer
+  buffer?: GPUBuffer,
+  texUsage?: GPUTextureUsageFlags,
+  format?: GPUTextureFormat,
+  texture?: GPUTexture,
+  // Below is texture specific.
+  texShape?: [number, number];
 };
 
 type TensorBufferInfo = {
@@ -93,6 +104,8 @@ const CPU_HANDOFF_SIZE_THRESHOLD = 128;
 
 const DEFAULT_GPUBUFFER_USAGE =
     GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+const DEFAULT_GPUTEXTURE_USAGE = GPUTextureUsage.STORAGE |
+    GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST;
 
 export class WebGPUBackend extends KernelBackend {
   device: GPUDevice;
@@ -106,6 +119,7 @@ export class WebGPUBackend extends KernelBackend {
   private commandQueueOwnedIds = new WeakSet<DataId>();
   private binaryCache: {[key: string]: WebGPUBinary};
   private bufferManager: BufferManager;
+  private textureManager: TextureManager;
 
   private tensorDisposalQueue: DataId[] = [];
   private uniformDisposalQueue: BufferInfo[] = [];
@@ -116,6 +130,10 @@ export class WebGPUBackend extends KernelBackend {
   private activeTimers: TimerNode[];
   private uploadWaitMs = 0;
   private downloadWaitMs = 0;
+  private useTexture = true;
+  private format: GPUTextureFormat = 'rgba32float';
+  private usePackedTexture =
+      (this.useTexture && this.format == 'rgba32float') ? true : false;
   private cpuBackend: KernelBackend;
   private querySet: GPUQuerySet;
 
@@ -129,6 +147,7 @@ export class WebGPUBackend extends KernelBackend {
     this.supportTimeQuery = supportTimeQuery;
 
     this.bufferManager = new BufferManager(this.device);
+    this.textureManager = new TextureManager(this.device, this.format);
     this.tensorMap = new DataStorage(this, engine());
     if (this.supportTimeQuery) {
       this.querySet = this.device.createQuerySet({
@@ -145,6 +164,7 @@ export class WebGPUBackend extends KernelBackend {
   flushDisposalQueue() {
     this.tensorDisposalQueue.forEach(d => {
       this.maybeReleaseBuffer(d);
+      this.maybeReleaseTexture(d);
       this.tensorMap.delete(d);
     });
     this.uniformDisposalQueue.forEach(
@@ -164,6 +184,7 @@ export class WebGPUBackend extends KernelBackend {
       return;
     } else {
       this.maybeReleaseBuffer(dataId);
+      this.maybeReleaseTexture(dataId);
     }
 
     this.tensorMap.delete(dataId);
@@ -196,16 +217,38 @@ export class WebGPUBackend extends KernelBackend {
     }
   }
 
+  private maybeReleaseTexture(dataId: DataId) {
+    const info = this.tensorMap.get(dataId);
+    if (info != null && info.bufferInfo.texture != null) {
+      // ERROR(texture). Need to div by 4?
+      this.textureManager.releaseTexture(
+          info.bufferInfo.texture, info.bufferInfo.texShape[1],
+          info.bufferInfo.texShape[0], info.bufferInfo.format,
+          info.bufferInfo.texUsage);
+      info.bufferInfo.texture = null;
+    }
+  }
+
   write(values: backend_util.BackendValues, shape: number[], dtype: DataType):
       DataId {
     const dataId = {};
     const byteSize =
         util.sizeFromShape(shape) * webgpu_util.GPUBytesPerElement(dtype);
+    const useVec4 = this.format == 'rgba32float' ? true : false;
+    const texShape =
+        webgpu_texture_util.getTextureShapeFromLogicalShape(shape, useVec4);
 
     this.tensorMap.set(dataId, {
       dtype,
       values,
-      bufferInfo: {byteSize, usage: DEFAULT_GPUBUFFER_USAGE}
+      bufferInfo: {
+        byteSize,
+        usage: DEFAULT_GPUBUFFER_USAGE,
+        texUsage: DEFAULT_GPUTEXTURE_USAGE,
+        format: this.format,
+        // TODO(texture): this only works when texture is used.
+        texShape: texShape
+      }
     });
     return dataId;
   }
@@ -265,11 +308,65 @@ export class WebGPUBackend extends KernelBackend {
     return values as backend_util.BackendValues;
   }
 
+  private async getTextureData(info: TensorBufferInfo):
+      Promise<backend_util.BackendValues> {
+    if (info.values != null) {
+      // Data is on the CPU.
+      return info.values;
+    }
+
+    const width = info.bufferInfo.texShape[1];
+    const height = info.bufferInfo.texShape[0];
+    const bytesPerRow = this.textureManager.getBytesPerRow(width);
+    // Below code will lead to extra memroy usage.
+    /*
+    const staging = this.acquireBuffer(
+        this.textureManager.getBufferSize(width, height),
+        GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
+    */
+    const staging = this.device.createBuffer({
+      size: this.textureManager.getBufferSize(width, height),
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+    });
+    const encoder = this.device.createCommandEncoder();
+    const [packedWidth, packedHeight] =
+        webgpu_texture_util.getPackedMatrixTextureShapeWidthHeight(
+            height, width, this.format);
+
+    encoder.copyTextureToBuffer(
+        {texture: info.bufferInfo.texture},
+        {buffer: staging, bytesPerRow: bytesPerRow},
+        {width: packedWidth, height: packedHeight, depth: 1});
+    this.commandQueue.push(encoder);
+    this.submitQueue();
+
+    await staging.mapAsync(GPUMapMode.READ);
+    const values = staging.getMappedRange().slice(0);
+
+    staging.unmap();
+    // TODO(texture): Understand why put this inside if?
+    if (staging != null) {
+      staging.destroy();
+      // Below code will lead to extra memroy usage.
+      /*
+      this.bufferManager.releaseBuffer(
+          staging, this.textureManager.getBufferSize(width, height),
+          GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
+      */
+    }
+
+    const result = this.textureManager.removeTexturePadding(
+        new Float32Array(values), width, height);
+
+    return result as backend_util.BackendValues;
+  }
+
   private convertAndCacheOnCPU(dataId: DataId, data: backend_util.TypedArray):
       backend_util.TypedArray {
     const info = this.tensorMap.get(dataId);
 
     this.maybeReleaseBuffer(dataId);
+    this.maybeReleaseTexture(dataId);
 
     info.values = data;
     return info.values;
@@ -294,7 +391,12 @@ export class WebGPUBackend extends KernelBackend {
       throw new Error(`Tensor ${dataId} was not registered!`);
     }
     const info = this.tensorMap.get(dataId);
-    const data = await this.getBufferData(info);
+    // If useTexture:
+    var data;
+    if (info.bufferInfo.buffer)
+      data = await this.getBufferData(info);
+    else
+      data = await this.getTextureData(info);
 
     const dataAsTypedArray =
         webgpu_util.ArrayBufferToTypedArray(data as ArrayBuffer, info.dtype);
@@ -375,11 +477,14 @@ export class WebGPUBackend extends KernelBackend {
 
     const tensorData = this.tensorMap.get(tensor.dataId);
 
-    return {
-      offset: 0,
-      size: tensorData.bufferInfo.byteSize,
-      buffer: tensorData.bufferInfo.buffer
-    };
+    if (tensorData.bufferInfo.buffer) {
+      return {
+        offset: 0,
+        size: tensorData.bufferInfo.byteSize,
+        buffer: tensorData.bufferInfo.buffer
+      };
+    } else
+      return tensorData.bufferInfo.texture.createView();
   }
 
   async getQueryTime(query: GPUQuerySet): Promise<number> {
@@ -407,6 +512,28 @@ export class WebGPUBackend extends KernelBackend {
     }
   }
 
+  private uploadTextureToGPU(
+      dataId: DataId, useTexture = true, format: GPUTextureFormat = 'r32float',
+      usage: GPUTextureUsageFlags = DEFAULT_GPUTEXTURE_USAGE): void {
+    const info = this.tensorMap.get(dataId);
+
+    if (info.bufferInfo.texture != null) {
+      // Already on the GPU.
+      return;
+    }
+    info.bufferInfo.texture = this.textureManager.acquireTexture(
+        info.bufferInfo.texShape[1], info.bufferInfo.texShape[0], this.format,
+        usage);
+    if (info.values) {
+      this.textureManager.writeTextureWithCopy(
+          this.device, info.bufferInfo.texture, info.values,
+          info.bufferInfo.texShape[1], info.bufferInfo.texShape[0]);
+      info.values = null;
+    }
+
+    return;
+  }
+
   public compileAndRun<K extends TensorInfo>(
       program: webgpu_program.WebGPUProgram, inputs: TensorInfo[],
       output?: TensorInfo, programUniforms?: number[]): K {
@@ -424,24 +551,68 @@ export class WebGPUBackend extends KernelBackend {
     }
 
     const inputsData = inputs.map((input: Tensor, i: number) => {
-      this.uploadToGPU(input.dataId);
+      if (this.useTexture) {
+        this.uploadTextureToGPU(input.dataId);
+      } else {
+        this.uploadToGPU(input.dataId);
+      }
+      // TODO(texture): move this into texture only path.
+      const texShape = webgpu_texture_util.getTextureShapeFromLogicalShape(
+          input.shape, this.usePackedTexture);
+      const shapeInfo: ShapeInfo = {
+        dtype: this.tensorMap.get(input.dataId).dtype,
+        logicalShape: input.shape,
+        texShape: [texShape[0], texShape[1]],
+        isUniform: false,
+        isPacked: false,  // output.texData.isPacked,
+        flatOffset: null
+      };
 
       return {
         // Returning dtype from tensorMap because it reflects dtype
         // of underlying buffer, rather than abstract dtype.
         dtype: this.tensorMap.get(input.dataId).dtype,
         shape: input.shape,
-        name: program.variableNames[i]
+        name: program.variableNames[i],
+        shapeInfo: shapeInfo,
+        useTexture: this.useTexture
       };
     });
-    this.uploadToGPU(output.dataId);
+    var outShapeInfo: ShapeInfo;
+    if (this.useTexture) {
+      this.uploadTextureToGPU(output.dataId);
+      const texShape = webgpu_texture_util.getTextureShapeFromLogicalShape(
+          output.shape, this.usePackedTexture);
+      outShapeInfo = {
+        dtype: this.tensorMap.get(output.dataId).dtype,
+        logicalShape: output.shape,
+        texShape: [texShape[0], texShape[1]],
+        isUniform: false,
+        isPacked: false,  // output.texData.isPacked,
+        flatOffset: null
+      };
+    } else {
+      this.uploadToGPU(output.dataId);
+      outShapeInfo = null;
+    }
     const bufferShapes = inputs.concat(output).map(d => d.shape);
     const bufferTypes = inputsData.map(d => d.dtype).concat(output.dtype);
     const key =
         webgpu_program.makeShaderKey(program, bufferShapes, bufferTypes);
     const {bindGroupLayout, pipeline} = this.getAndSavePipeline(key, () => {
-      return webgpu_program.compileProgram(
-          this.glslang, this.device, program, inputsData, output, uniforms);
+      if (this.useTexture) {
+        return webgpu_program.compileProgramTexture(
+            this.glslang,
+            this.device,
+            program,
+            this.format,
+            inputsData,
+            outShapeInfo,
+        );
+      } else {
+        return webgpu_program.compileProgram(
+            this.glslang, this.device, program, inputsData, output);
+      }
     });
 
     const shouldTimeProgram = this.activeTimers != null;
@@ -605,7 +776,9 @@ export class WebGPUBackend extends KernelBackend {
 
   private binaryOp(a: Tensor, b: Tensor, op: BinaryOpType, boolType?: boolean):
       Tensor {
-    const program = getBinaryProgram(op, a.shape, b.shape);
+    const program =
+        getBinaryProgram(op, a.shape, b.shape, this.usePackedTexture);
+
     if (boolType) {
       const dataId = this.write(null /*values*/, program.outputShape, 'bool');
       const output = engine().makeTensorFromDataId(
@@ -736,7 +909,8 @@ export class WebGPUBackend extends KernelBackend {
     const dataId = this.write(null /*values*/, convInfo.outShape, x.dtype);
     const output =
         engine().makeTensorFromDataId(dataId, convInfo.outShape, x.dtype, this);
-    let program: Conv2DMMProgram|Conv2DNaiveProgram|Conv2DMMVec4Program;
+    let program: Conv2DMMProgram|Conv2DNaiveProgram|Conv2DMMVec4Program|
+        Conv2DMMVec4Size4Program;
 
     const workPerThread = env().get('WEBGPU_CONV2D_WORK_PER_THREAD') as number;
     if (workPerThread === -1) {
@@ -748,10 +922,14 @@ export class WebGPUBackend extends KernelBackend {
         // 128, 128, 4], filter = [25, 25, 4, 4]. In this case, lots of theads
         // will run idle. So temporarily, use 64 as the threshold.
         convInfo.inChannels % 4 === 0 && convInfo.outChannels % 4 === 0 &&
-        convInfo.outChannels >= 64) {
-      program = new Conv2DMMVec4Program(convInfo);
+        convInfo.outChannels >= 4) {
+      program = new Conv2DMMVec4Size4Program(convInfo, this.usePackedTexture);
     } else {
-      program = new Conv2DMMProgram(convInfo, workPerThread);
+      /*
+      program = new Conv2DMMProgram(
+          convInfo, workPerThread, false, null, false, this.useTexture);
+      */
+      program = new Conv2DMMVec4Program(convInfo, this.usePackedTexture);
     }
 
     const pad = [convInfo.padInfo.top, convInfo.padInfo.left];
@@ -821,11 +999,12 @@ export class WebGPUBackend extends KernelBackend {
           convInfo, hasBias, fusedActivation, hasPreluActivationWeights);
     } else if (useVec4) {
       program = new Conv2DMMVec4Program(
-          convInfo, hasBias, fusedActivation, hasPreluActivationWeights);
+          convInfo, hasBias, this.usePackedTexture, fusedActivation,
+          hasPreluActivationWeights);
     } else {
       program = new Conv2DMMProgram(
           convInfo, workPerThread, hasBias, fusedActivation,
-          hasPreluActivationWeights);
+          hasPreluActivationWeights, this.useTexture);
     }
 
     const pad = [convInfo.padInfo.top, convInfo.padInfo.left];
@@ -1036,8 +1215,15 @@ export class WebGPUBackend extends KernelBackend {
   }
 
   relu<T extends Tensor>(x: T): T {
-    const program = new UnaryOpProgram(x.shape, unary_op.RELU);
-    return this.compileAndRun(program, [x]);
+    let program: UnaryOpProgram|UnaryOpVec4Program;
+    if (this.usePackedTexture) {
+      program = new UnaryOpVec4Program(
+          x.shape, unary_op_vec4.RELU, this.usePackedTexture);
+      return this.compileAndRun(program, [x]);
+    } else {
+      program = new UnaryOpProgram(x.shape, unary_op.RELU);
+      return this.compileAndRun(program, [x]);
+    }
   }
 
   relu6<T extends Tensor>(x: T): T {
@@ -1211,19 +1397,21 @@ export class WebGPUBackend extends KernelBackend {
           a.shape, output.shape as [number, number, number], transposeA,
           transposeB);
     } else if (
-        a.shape[2] % 4 === 0 && b.shape[2] % 4 === 0 && !transposeA &&
-        !transposeB) {
+        (a.shape[2] % 4 === 0 && b.shape[2] % 4 === 0 && !transposeA &&
+         !transposeB) ||
+        this.usePackedTexture) {
       // TODO: Currently we need to make sure that a.shape[2] and b.shape[2] are
       // divisible by 4 since we use vec4 to get data. In future, we can remove
       // this limitation by insert 0 to pack data.
       program = new MatMulPackedVec4Program(
           a.shape, output.shape as [number, number, number],
-          env().get('WEBGPU_MATMUL_WORK_PER_THREAD') as number);
+          env().get('WEBGPU_MATMUL_WORK_PER_THREAD') as number,
+          this.usePackedTexture);
     } else {
       program = new MatMulPackedProgram(
           a.shape, output.shape as [number, number, number],
           env().get('WEBGPU_MATMUL_WORK_PER_THREAD') as number, transposeA,
-          transposeB);
+          transposeB, this.useTexture);
     }
 
     return this.compileAndRun(program, [a, b], output);
@@ -1238,6 +1426,7 @@ export class WebGPUBackend extends KernelBackend {
       return;
     }
     this.bufferManager.dispose();
+    this.textureManager.dispose();
     if (this.fromPixelProgram) {
       this.fromPixelProgram.dispose();
     }

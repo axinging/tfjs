@@ -19,7 +19,12 @@
     "test": "yarn && karma start --browsers=chrome_webgpu --excludeTest='src/benchmark_ops_test.ts'",
     "test-dev": "karma start --browsers=chrome_webgpu --excludeTest='src/benchmark_ops_test.ts'",
     "test-ci": "./scripts/test-ci.sh",
-    "benchmark": "yarn build && karma start --grep=benchmark --browsers=chrome_webgpu"
+    "benchmark": "karma start --grep=benchmark --browsers=chrome_webgpu",
+    "resnet": "karma start --grep=resnetconvdebug --browsers=chrome_webgpu",
+    "resnetsync": "karma start --grep=resnetconvsyncv1 --browsers=chrome_webgpu",
+    "resnetsyncv2": "karma start --grep=resnetconvsyncv2 --browsers=chrome_webgpu",
+    "resnetprofile": "karma start --grep=resnetconvprofile --browsers=chrome_webgpu",
+    "resnetmatmul": "karma start --grep=resnetmatmultexture --browsers=chrome_webgpu"
   },
   "license": "Apache-2.0",
   "devDependencies": {

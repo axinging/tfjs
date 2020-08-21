@@ -16,187 +16,2541 @@
  */
 
 import * as tf from '@tensorflow/tfjs-core';
+import {test_util} from '@tensorflow/tfjs-core';
+
 import {describeWebGPU} from './test_util';
+const expectArraysClose = test_util.expectArraysClose;
 
-describeWebGPU('Ops benchmarks', () => {
-  // Performs `trials` trials, of `reps` repetitions each. At the end of each
-  // trial, endTrial() is run (and included in the benchmark time). This
-  // allows the cost of endTrial() to be amortized across the many iterations.
-  // This is needed in particular because WebGPU readbacks are asynchronous
-  // and therefore always incur latency. (Plus, in Chrome right now, readbacks
-  // are very inefficient, making the problem way worse.) Readbacks could be
-  // avoided by using fences, but we don't have a common abstraction over
-  // WebGL and WebGPU fences at the moment.
-  async function time(
-      doRep: (r: number) => tf.Tensor[] | tf.Tensor,
-      endTrial?: () => Promise<void>, disposeAfterEachTrial = false,
-      trials = 50, reps = 1) {
-    const times = [];
+function createFloat32Array(w: number, h: number) {
+  const matrix = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    matrix[i] = i + 1;  // Math.random();
+  }
+  return matrix;
+}
+describeWebGPU('webgputextureconv2dvec4', () => {
 
-    let toDispose: tf.Tensor[] = [];
-    const dispose = () => {
-      for (const t of toDispose) {
-        t.dispose();
-      }
-      toDispose = [];
-    };
+  it('rgba32fconv4d1441 x=[1,4,4,1] f=[3,3,1,1] s=[2,2] d=1 p=same', async () => {
+    const inputDepth = 1;
+    const xSize = 4;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 1;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [1, 1];
 
-    const trial = async () => {
-      let result;
-      for (let r = 0; r < reps; ++r) {
-        result = doRep(r);
-
-        toDispose = toDispose.concat(Array.isArray(result) ? result : [result]);
-      }
-
-      if (endTrial != null) {
-        await endTrial();
-      } else {
-        await (Array.isArray(result) ? result[0] : result).data();
-      }
-    };
-
-    // Warm-up. Specifically, this pre-allocates enough memory for an entire
-    // trial, ensuring that no allocations happen when timing a trial (if the
-    // backend reuses allocations).
-    await trial();
-    dispose();
-
-    for (let t = 0; t < trials; ++t) {
-      const start = tf.util.now();
-      await trial();
-      times.push(tf.util.now() - start);
-      if (disposeAfterEachTrial) {
-        dispose();
-      }
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
     }
 
-    const mean = times.reduce((a, b) => a + b, 0) / trials;
-    const min = Math.min(...times);
-    const fmt = (n: number) => n.toFixed(3);
-    console.log(`Mean time: ${fmt(mean)} ms -> ${fmt(mean / reps)} / rep`);
-    console.log(`Min time: ${fmt(min)} ms -> ${fmt(min / reps)} / rep`);
-  }
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
 
-  it('argMax', async () => {
-    const n = 2;
-    const doTest = async (axis: number) => {
-      const tensors = new Array(n);
-      const maxes = new Array(n);
-      for (let i = 0; i < n; ++i) {
-        tensors[i] = tf.randomNormal([100, 100, 100]);
-      }
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
 
-      await time(
-          (r) => {
-            maxes[r] = tf.argMax(tensors[r], axis);
-            return [];
-          },
-          async () => {
-            await maxes[maxes.length - 1].data();
-            for (const t of maxes) {
-              t.dispose();
-            }
-          },
-          false, 50, n);
-    };
-
-    await doTest(0);
-    await doTest(1);
-    await doTest(2);
-  }, 60000);
-
-  it('concat', async () => {
-    const a = tf.randomNormal([500, 500]);
-    const b = tf.randomNormal([500, 500]);
-
-    await time(() => tf.concat([a, b], 1));
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, 1]);
+    expectArraysClose(
+        await result.data(), new Float32Array([8,11,19,23,36,28,19,16,29,47,28,10,19,22,27,13
+        ]));
   });
 
-  it('resizeBilinear', async () => {
-    const input = tf.randomNormal<tf.Rank.R3>([128, 128, 4]);
+  it('rgba32fconv4d1444_3341 x=[1,4,4,4] f=[3,3,4,1] s=[1,1] d=1 p=same', async () => {
+    const inputDepth = 4;
+    const xSize = 4;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 1;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [1, 1];
 
-    await time(() => input.resizeBilinear([256, 256], false));
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, outputDepth]);
+    expectArraysClose(
+        await result.data(), new Float32Array([54,67,78,85,104,147,107,68,117,167,147,70,53,91,115,75
+        ]));
   });
 
-  it('matMul', async () => {
-    const a = tf.randomNormal([500, 500]);
-    const b = tf.randomNormal([500, 500]);
+  it('rgba32fconv4d1444_3344 x=[1,4,4,4] f=[3,3,4,4] s=[1,1] d=1 p=same', async () => {
+    const inputDepth = 4;
+    const xSize = 4;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [1, 1];
 
-    await time(() => tf.matMul(a, b));
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, outputDepth]);
+    expectArraysClose(
+        await result.data(), new Float32Array([
+
+          41,50,69,68,93,67,71,100,112,107,62,67,70,82,74,51,86,104,112,90,113,127,161,160,113,111,129,162,107,77,67,87,118,115,107,89,133,168,173,143,113,127,161,160,75,69,83,107,87,53,49,80,129,116,83,75,110,118,106,69,50,69,68,62
+        ]));
   });
 
-  it('matMul - dispatch 1', async () => {
-    const a = tf.randomNormal([16, 2048]);
-    const b = tf.randomNormal([2048, 16]);
 
-    await time(() => tf.matMul(a, b));
+  it('rgba32fconv4d1443 x=[1,4,4,3] f=[3,3,3,4] s=[1,1] d=1 p=same', async () => {
+    const inputDepth = 3;
+    const xSize = 4;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [1, 1];
+
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, outputDepth]);
+    expectArraysClose(
+        await result.data(), new Float32Array([
+          53,35,42,39,59,74,74,69,54,58,62,86,52,56,50,44,87,63,59,75,115,97,114,91,97,90,108,111,63,72,66,70,75,87,69,71,123,99,95,126,115,97,114,91,59,64,79,69,46,61,61,36,67,74,61,78,83,79,55,76,42,39,51,53
+        ]));
   });
 
-  it('add', async () => {
-    const a = tf.randomNormal([1, 65, 65, 256]);
-    const b = tf.randomNormal([1, 65, 65, 256]);
+  it('rgba32fconv4d1443all1 x=[1,4,4,3] f=[3,3,3,4] s=[1,1] d=1 p=same', async () => {
+    const inputDepth = 3;
+    const xSize = 4;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [1, 1];
 
-    await time(() => tf.add(a, b));
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(1);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, outputDepth]);
+    expectArraysClose(
+        await result.data(), new Float32Array([
+          22,22,22,22,35,35,35,35,34,34,34,34,24,24,24,24,36,36,36,36,52,52,52,52,53,53,53,53,34,34,34,34,37,37,37,37,56,56,56,56,52,52,52,52,35,35,35,35,25,25,25,25,37,37,37,37,36,36,36,36,22,22,22,22
+        ]));
   });
 
-  it('clip', async () => {
-    const a = tf.randomNormal([1, 65, 65, 256]);
 
-    await time(() => tf.clipByValue(a, 0.1, 0.9));
+  it('rgba32fconv4d1883 x=[1,8,8,3] f=[3,3,3,4] s=[2,2] d=1 p=same', async () => {
+    const inputDepth = 3;
+    const xSize = 8;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [2, 2];
+
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, 4]);
+    expectArraysClose(
+        await result.data(), new Float32Array([
+          104, 125, 126, 102, 133, 126, 104, 57,  137, 102, 57,  112, 64,
+          40,  76,  92,  116, 53,  110, 142, 50,  104, 133, 137, 104, 125,
+          126, 102, 83,  88,  78,  33,  133, 126, 104, 57,  137, 102, 57,
+          112, 116, 53,  110, 142, 37,  76,  100, 99,  33,  68,  83,  88,
+          70,  83,  76,  64,  92,  88,  64,  40,  51,  44,  27,  50
+        ]));
   });
 
-  it('conv2d', async () => {
-    const a = tf.randomNormal<tf.Rank.R4>([1, 128, 128, 4]);
-    const b = tf.randomNormal<tf.Rank.R4>([25, 25, 4, 4]);
 
-    await time(() => tf.conv2d(a, b, 1, 'same'));
+  it('rgba32fconv4d1884', async () => {
+    const inputDepth = 4;
+    const xSize = 8;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [2, 2];
+
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    console.log(result.shape);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      140, 175, 175, 140, 140, 73,  146, 184, 175, 176, 142, 73,  46,
+      94,  117, 125, 70,  144, 183, 187, 175, 142, 74,  146, 140, 175,
+      175, 140, 98,  47,  96,  125, 140, 73,  146, 184, 175, 176, 142,
+      73,  70,  144, 183, 187, 125, 100, 50,  100, 124, 98,  47,  96,
+      96,  117, 113, 84,  98,  46,  94,  117, 84,  87,  60,  33
+    ]);
   });
 
-  it('depthwiseconv2d', async () => {
-    const x = tf.randomNormal<tf.Rank.R4>([1, 128, 128, 1]);
-    const w = tf.tensor4d(
-        [0.303873, 0.229223, 0.144333, 0.803373],
-        [2, 2, 1, 1],
-    );
+  it('rgba32fconv4d884', async () => {
+    const inputDepth = 4;
+    const xSize = 8;
+    const inputShape: [number, number, number] = [xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [2, 2];
 
-    await time(() => tf.depthwiseConv2d(x, w, 1, 'valid'));
-  });
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
 
-  it('maxPool with filter size = 1', async () => {
-    const y = tf.randomNormal<tf.Rank.R4>([1, 57, 57, 256]);
-    const z = tf.randomNormal<tf.Rank.R4>([1, 29, 29, 512]);
-    await time(() => tf.maxPool(y, 1, 2, 'same'), null, true, 10, 10);
-    await time(() => tf.maxPool(z, 1, 2, 'same'), null, true, 10, 10);
-  });
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
 
-  it('maxPool', async () => {
-    const x = tf.randomNormal<tf.Rank.R4>([1, 131, 131, 64]);
+    const x = tf.tensor3d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
 
-    await time(() => tf.maxPool(x, 2, 1, 'same'), null, true, 10, 10);
-  });
-
-  it('prelu', async () => {
-    const x = tf.randomNormal([500]);
-    const a = tf.randomNormal([500]);
-
-    await time(() => tf.prelu(x, a), null, false, 10, 10);
-  });
-
-  it('slice', async () => {
-    const a = tf.randomNormal<tf.Rank.R1>([500]);
-
-    await time(() => tf.slice1d(a, 2, 498), null, false, 10, 10);
-  });
-
-  it('transpose', async () => {
-    const x = tf.randomNormal([1024, 1024]);
-    await time(() => tf.transpose(x, [1, 0]), null, false, 10, 10);
-  });
-
-  it('stridedSlice', async () => {
-    const a = tf.randomNormal<tf.Rank.R1>([500]);
-
-    await time(() => tf.stridedSlice(a, [0], [500], [2]), null, true, 10, 10);
+    const result = tf.conv2d(x, w, stride, pad);
+    console.log(result.shape);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      140, 175, 175, 140, 140, 73,  146, 184, 175, 176, 142, 73,  46,
+      94,  117, 125, 70,  144, 183, 187, 175, 142, 74,  146, 140, 175,
+      175, 140, 98,  47,  96,  125, 140, 73,  146, 184, 175, 176, 142,
+      73,  70,  144, 183, 187, 125, 100, 50,  100, 124, 98,  47,  96,
+      96,  117, 113, 84,  98,  46,  94,  117, 84,  87,  60,  33
+    ]);
   });
 });
+
+describeWebGPU('webgputexturematmul', () => {
+  it('rgba32fmatmul3d444', async () => {
+    const a = tf.tensor3d(
+        [
+          -5, -5, -6, 8,  -2, -8, 4,  -7, -6, -9, -1, 3,  7, -2, 5,  -6,
+          3,  8,  7,  -8, 1,  4,  -4, 6,  4,  -4, -9, -5, 2, -2, -5, -5,
+          -6, 8,  -2, -8, 4,  -7, -6, -9, -1, 3,  7,  -2, 5, -6, 3,  8,
+          7,  -8, 1,  4,  -4, 6,  4,  -4, -9, -5, 2,  -2, 1, 2,  3,  4
+        ],
+        [4, 4, 4]);
+    const b = tf.tensor3d(
+        [
+          -8, -4, -1, 0,  -7, 0,   3,  3,   6,  2, -1, 8,  -4, 9,  -6, 5,
+          8,  9,  -9, 7,  0,  -1,  -1, -10, -7, 3, 4,  6,  3,  -4, -8, -4,
+          -1, 0,  -7, 0,  3,  3,   6,  2,   -1, 8, -4, 9,  -6, 5,  8,  9,
+          -9, 7,  0,  -1, -1, -10, -7, 3,   4,  6, 3,  -4, 2,  3,  4,  5
+        ],
+        [4, 4, 4]);
+
+    const transposeA = false;
+    const transposeB = false;
+    const c = tf.matMul(a, b, transposeA, transposeB);
+    console.log(await c.data());
+    expectArraysClose(await c.data(), [
+      7,    80,  -52, -23, 124, -47, 16, -27, 93,  49,  -38, -20,  12,
+      -72,  18,  4,   -49, 72,  57,  15, 54,  -31, -77, -81, 80,   33,
+      -28,  34,  36,  25,  4,   24,  80, -32, 34,  -74, 35,  -114, -118,
+      -149, 15,  55,  -19, 51,  -74, 46, -19, 87,  -43, 147, 75,   -15,
+      38,   -76, -46, -14, 90,  -7,  33, -24, 9,   17,  11,  13
+    ]);
+  });
+
+  it('rgba32fmatmul3d1644', async () => {
+    const batch = 4;
+    const row = 4;
+    const col = 4;
+    const channel = 4;
+    const size_x = batch * row * col;
+    const size_y = channel;
+
+    const firstMatrixSize: [number, number, number] =
+        [batch * row, col, channel];
+    const firstMatrix = createFloat32Array(size_x, size_y);
+    const secondMatrixSize: [number, number, number] =
+        [batch * row, col, channel];
+    let secondMatrix = createFloat32Array(size_x, size_y);
+    let a = tf.tensor3d(firstMatrix, firstMatrixSize);
+    let b = tf.tensor3d(secondMatrix, secondMatrixSize);
+    const result = tf.matMul(a, b);
+    const resultData = await result.data();
+    console.log(resultData);
+    expectArraysClose(await result.data(), [
+      90,     100,    110,    120,    202,    228,    254,    280,    314,
+      356,    398,    440,    426,    484,    542,    600,    1722,   1796,
+      1870,   1944,   2090,   2180,   2270,   2360,   2458,   2564,   2670,
+      2776,   2826,   2948,   3070,   3192,   5402,   5540,   5678,   5816,
+      6026,   6180,   6334,   6488,   6650,   6820,   6990,   7160,   7274,
+      7460,   7646,   7832,   11130,  11332,  11534,  11736,  12010,  12228,
+      12446,  12664,  12890,  13124,  13358,  13592,  13770,  14020,  14270,
+      14520,  18906,  19172,  19438,  19704,  20042,  20324,  20606,  20888,
+      21178,  21476,  21774,  22072,  22314,  22628,  22942,  23256,  28730,
+      29060,  29390,  29720,  30122,  30468,  30814,  31160,  31514,  31876,
+      32238,  32600,  32906,  33284,  33662,  34040,  40602,  40996,  41390,
+      41784,  42250,  42660,  43070,  43480,  43898,  44324,  44750,  45176,
+      45546,  45988,  46430,  46872,  54522,  54980,  55438,  55896,  56426,
+      56900,  57374,  57848,  58330,  58820,  59310,  59800,  60234,  60740,
+      61246,  61752,  70490,  71012,  71534,  72056,  72650,  73188,  73726,
+      74264,  74810,  75364,  75918,  76472,  76970,  77540,  78110,  78680,
+      88506,  89092,  89678,  90264,  90922,  91524,  92126,  92728,  93338,
+      93956,  94574,  95192,  95754,  96388,  97022,  97656,  108570, 109220,
+      109870, 110520, 111242, 111908, 112574, 113240, 113914, 114596, 115278,
+      115960, 116586, 117284, 117982, 118680, 130682, 131396, 132110, 132824,
+      133610, 134340, 135070, 135800, 136538, 137284, 138030, 138776, 139466,
+      140228, 140990, 141752, 154842, 155620, 156398, 157176, 158026, 158820,
+      159614, 160408, 161210, 162020, 162830, 163640, 164394, 165220, 166046,
+      166872, 181050, 181892, 182734, 183576, 184490, 185348, 186206, 187064,
+      187930, 188804, 189678, 190552, 191370, 192260, 193150, 194040, 209306,
+      210212, 211118, 212024, 213002, 213924, 214846, 215768, 216698, 217636,
+      218574, 219512, 220394, 221348, 222302, 223256, 239610, 240580, 241550,
+      242520, 243562, 244548, 245534, 246520, 247514, 248516, 249518, 250520,
+      251466, 252484, 253502, 254520
+    ]);
+  });
+
+  it('rgba32fmatmul4d41644', async () => {
+    const batch = 4;
+    const row = 16;
+    const col = 4;
+    const channel = 4;
+    const size_x = batch * row * col;
+    const size_y = channel;
+
+    const firstMatrixSize: [number, number, number, number] =
+        [batch, row, col, channel];
+    const firstMatrix = createFloat32Array(size_x, size_y);
+    const secondMatrixSize: [number, number, number, number] =
+        [batch, row, col, channel];
+    let secondMatrix = createFloat32Array(size_x, size_y);
+    let a = tf.tensor4d(firstMatrix, firstMatrixSize);
+    let b = tf.tensor4d(secondMatrix, secondMatrixSize);
+    const result = tf.matMul(a, b);
+    const resultData = await result.data();
+    console.log(resultData);
+    expectArraysClose(await result.data(), [
+      90,      100,     110,     120,     202,     228,     254,     280,
+      314,     356,     398,     440,     426,     484,     542,     600,
+      1722,    1796,    1870,    1944,    2090,    2180,    2270,    2360,
+      2458,    2564,    2670,    2776,    2826,    2948,    3070,    3192,
+      5402,    5540,    5678,    5816,    6026,    6180,    6334,    6488,
+      6650,    6820,    6990,    7160,    7274,    7460,    7646,    7832,
+      11130,   11332,   11534,   11736,   12010,   12228,   12446,   12664,
+      12890,   13124,   13358,   13592,   13770,   14020,   14270,   14520,
+      18906,   19172,   19438,   19704,   20042,   20324,   20606,   20888,
+      21178,   21476,   21774,   22072,   22314,   22628,   22942,   23256,
+      28730,   29060,   29390,   29720,   30122,   30468,   30814,   31160,
+      31514,   31876,   32238,   32600,   32906,   33284,   33662,   34040,
+      40602,   40996,   41390,   41784,   42250,   42660,   43070,   43480,
+      43898,   44324,   44750,   45176,   45546,   45988,   46430,   46872,
+      54522,   54980,   55438,   55896,   56426,   56900,   57374,   57848,
+      58330,   58820,   59310,   59800,   60234,   60740,   61246,   61752,
+      70490,   71012,   71534,   72056,   72650,   73188,   73726,   74264,
+      74810,   75364,   75918,   76472,   76970,   77540,   78110,   78680,
+      88506,   89092,   89678,   90264,   90922,   91524,   92126,   92728,
+      93338,   93956,   94574,   95192,   95754,   96388,   97022,   97656,
+      108570,  109220,  109870,  110520,  111242,  111908,  112574,  113240,
+      113914,  114596,  115278,  115960,  116586,  117284,  117982,  118680,
+      130682,  131396,  132110,  132824,  133610,  134340,  135070,  135800,
+      136538,  137284,  138030,  138776,  139466,  140228,  140990,  141752,
+      154842,  155620,  156398,  157176,  158026,  158820,  159614,  160408,
+      161210,  162020,  162830,  163640,  164394,  165220,  166046,  166872,
+      181050,  181892,  182734,  183576,  184490,  185348,  186206,  187064,
+      187930,  188804,  189678,  190552,  191370,  192260,  193150,  194040,
+      209306,  210212,  211118,  212024,  213002,  213924,  214846,  215768,
+      216698,  217636,  218574,  219512,  220394,  221348,  222302,  223256,
+      239610,  240580,  241550,  242520,  243562,  244548,  245534,  246520,
+      247514,  248516,  249518,  250520,  251466,  252484,  253502,  254520,
+      271962,  272996,  274030,  275064,  276170,  277220,  278270,  279320,
+      280378,  281444,  282510,  283576,  284586,  285668,  286750,  287832,
+      306362,  307460,  308558,  309656,  310826,  311940,  313054,  314168,
+      315290,  316420,  317550,  318680,  319754,  320900,  322046,  323192,
+      342810,  343972,  345134,  346296,  347530,  348708,  349886,  351064,
+      352250,  353444,  354638,  355832,  356970,  358180,  359390,  360600,
+      381306,  382532,  383758,  384984,  386282,  387524,  388766,  390008,
+      391258,  392516,  393774,  395032,  396234,  397508,  398782,  400056,
+      421850,  423140,  424430,  425720,  427082,  428388,  429694,  431000,
+      432314,  433636,  434958,  436280,  437546,  438884,  440222,  441560,
+      464442,  465796,  467150,  468504,  469930,  471300,  472670,  474040,
+      475418,  476804,  478190,  479576,  480906,  482308,  483710,  485112,
+      509082,  510500,  511918,  513336,  514826,  516260,  517694,  519128,
+      520570,  522020,  523470,  524920,  526314,  527780,  529246,  530712,
+      555770,  557252,  558734,  560216,  561770,  563268,  564766,  566264,
+      567770,  569284,  570798,  572312,  573770,  575300,  576830,  578360,
+      604506,  606052,  607598,  609144,  610762,  612324,  613886,  615448,
+      617018,  618596,  620174,  621752,  623274,  624868,  626462,  628056,
+      655290,  656900,  658510,  660120,  661802,  663428,  665054,  666680,
+      668314,  669956,  671598,  673240,  674826,  676484,  678142,  679800,
+      708122,  709796,  711470,  713144,  714890,  716580,  718270,  719960,
+      721658,  723364,  725070,  726776,  728426,  730148,  731870,  733592,
+      763002,  764740,  766478,  768216,  770026,  771780,  773534,  775288,
+      777050,  778820,  780590,  782360,  784074,  785860,  787646,  789432,
+      819930,  821732,  823534,  825336,  827210,  829028,  830846,  832664,
+      834490,  836324,  838158,  839992,  841770,  843620,  845470,  847320,
+      878906,  880772,  882638,  884504,  886442,  888324,  890206,  892088,
+      893978,  895876,  897774,  899672,  901514,  903428,  905342,  907256,
+      939930,  941860,  943790,  945720,  947722,  949668,  951614,  953560,
+      955514,  957476,  959438,  961400,  963306,  965284,  967262,  969240,
+      1003002, 1004996, 1006990, 1008984, 1011050, 1013060, 1015070, 1017080,
+      1019098, 1021124, 1023150, 1025176, 1027146, 1029188, 1031230, 1033272,
+      1068122, 1070180, 1072238, 1074296, 1076426, 1078500, 1080574, 1082648,
+      1084730, 1086820, 1088910, 1091000, 1093034, 1095140, 1097246, 1099352,
+      1135290, 1137412, 1139534, 1141656, 1143850, 1145988, 1148126, 1150264,
+      1152410, 1154564, 1156718, 1158872, 1160970, 1163140, 1165310, 1167480,
+      1204506, 1206692, 1208878, 1211064, 1213322, 1215524, 1217726, 1219928,
+      1222138, 1224356, 1226574, 1228792, 1230954, 1233188, 1235422, 1237656,
+      1275770, 1278020, 1280270, 1282520, 1284842, 1287108, 1289374, 1291640,
+      1293914, 1296196, 1298478, 1300760, 1302986, 1305284, 1307582, 1309880,
+      1349082, 1351396, 1353710, 1356024, 1358410, 1360740, 1363070, 1365400,
+      1367738, 1370084, 1372430, 1374776, 1377066, 1379428, 1381790, 1384152,
+      1424442, 1426820, 1429198, 1431576, 1434026, 1436420, 1438814, 1441208,
+      1443610, 1446020, 1448430, 1450840, 1453194, 1455620, 1458046, 1460472,
+      1501850, 1504292, 1506734, 1509176, 1511690, 1514148, 1516606, 1519064,
+      1521530, 1524004, 1526478, 1528952, 1531370, 1533860, 1536350, 1538840,
+      1581306, 1583812, 1586318, 1588824, 1591402, 1593924, 1596446, 1598968,
+      1601498, 1604036, 1606574, 1609112, 1611594, 1614148, 1616702, 1619256,
+      1662810, 1665380, 1667950, 1670520, 1673162, 1675748, 1678334, 1680920,
+      1683514, 1686116, 1688718, 1691320, 1693866, 1696484, 1699102, 1701720,
+      1746362, 1748996, 1751630, 1754264, 1756970, 1759620, 1762270, 1764920,
+      1767578, 1770244, 1772910, 1775576, 1778186, 1780868, 1783550, 1786232,
+      1831962, 1834660, 1837358, 1840056, 1842826, 1845540, 1848254, 1850968,
+      1853690, 1856420, 1859150, 1861880, 1864554, 1867300, 1870046, 1872792,
+      1919610, 1922372, 1925134, 1927896, 1930730, 1933508, 1936286, 1939064,
+      1941850, 1944644, 1947438, 1950232, 1952970, 1955780, 1958590, 1961400,
+      2009306, 2012132, 2014958, 2017784, 2020682, 2023524, 2026366, 2029208,
+      2032058, 2034916, 2037774, 2040632, 2043434, 2046308, 2049182, 2052056,
+      2101050, 2103940, 2106830, 2109720, 2112682, 2115588, 2118494, 2121400,
+      2124314, 2127236, 2130158, 2133080, 2135946, 2138884, 2141822, 2144760,
+      2194842, 2197796, 2200750, 2203704, 2206730, 2209700, 2212670, 2215640,
+      2218618, 2221604, 2224590, 2227576, 2230506, 2233508, 2236510, 2239512,
+      2290682, 2293700, 2296718, 2299736, 2302826, 2305860, 2308894, 2311928,
+      2314970, 2318020, 2321070, 2324120, 2327114, 2330180, 2333246, 2336312,
+      2388570, 2391652, 2394734, 2397816, 2400970, 2404068, 2407166, 2410264,
+      2413370, 2416484, 2419598, 2422712, 2425770, 2428900, 2432030, 2435160,
+      2488506, 2491652, 2494798, 2497944, 2501162, 2504324, 2507486, 2510648,
+      2513818, 2516996, 2520174, 2523352, 2526474, 2529668, 2532862, 2536056,
+      2590490, 2593700, 2596910, 2600120, 2603402, 2606628, 2609854, 2613080,
+      2616314, 2619556, 2622798, 2626040, 2629226, 2632484, 2635742, 2639000,
+      2694522, 2697796, 2701070, 2704344, 2707690, 2710980, 2714270, 2717560,
+      2720858, 2724164, 2727470, 2730776, 2734026, 2737348, 2740670, 2743992,
+      2800602, 2803940, 2807278, 2810616, 2814026, 2817380, 2820734, 2824088,
+      2827450, 2830820, 2834190, 2837560, 2840874, 2844260, 2847646, 2851032,
+      2908730, 2912132, 2915534, 2918936, 2922410, 2925828, 2929246, 2932664,
+      2936090, 2939524, 2942958, 2946392, 2949770, 2953220, 2956670, 2960120,
+      3018906, 3022372, 3025838, 3029304, 3032842, 3036324, 3039806, 3043288,
+      3046778, 3050276, 3053774, 3057272, 3060714, 3064228, 3067742, 3071256,
+      3131130, 3134660, 3138190, 3141720, 3145322, 3148868, 3152414, 3155960,
+      3159514, 3163076, 3166638, 3170200, 3173706, 3177284, 3180862, 3184440,
+      3245402, 3248996, 3252590, 3256184, 3259850, 3263460, 3267070, 3270680,
+      3274298, 3277924, 3281550, 3285176, 3288746, 3292388, 3296030, 3299672,
+      3361722, 3365380, 3369038, 3372696, 3376426, 3380100, 3383774, 3387448,
+      3391130, 3394820, 3398510, 3402200, 3405834, 3409540, 3413246, 3416952,
+      3480090, 3483812, 3487534, 3491256, 3495050, 3498788, 3502526, 3506264,
+      3510010, 3513764, 3517518, 3521272, 3524970, 3528740, 3532510, 3536280,
+      3600506, 3604292, 3608078, 3611864, 3615722, 3619524, 3623326, 3627128,
+      3630938, 3634756, 3638574, 3642392, 3646154, 3649988, 3653822, 3657656,
+      3722970, 3726820, 3730670, 3734520, 3738442, 3742308, 3746174, 3750040,
+      3753914, 3757796, 3761678, 3765560, 3769386, 3773284, 3777182, 3781080,
+      3847482, 3851396, 3855310, 3859224, 3863210, 3867140, 3871070, 3875000,
+      3878938, 3882884, 3886830, 3890776, 3894666, 3898628, 3902590, 3906552,
+      3974042, 3978020, 3981998, 3985976, 3990026, 3994020, 3998014, 4002008,
+      4006010, 4010020, 4014030, 4018040, 4021994, 4026020, 4030046, 4034072,
+      4102650, 4106692, 4110734, 4114776, 4118890, 4122948, 4127006, 4131064,
+      4135130, 4139204, 4143278, 4147352, 4151370, 4155460, 4159550, 4163640
+    ]);
+  });
+
+  it('rgba32fmatmul2d1632', async () => {
+    const batch = 4;
+    const row = 4;
+    const col = 4;
+    const channel = 8;
+    const size_x = batch * row;
+    const size_y = channel * col;
+
+    const firstMatrixSize: [number, number] = [batch * row, col * channel];
+    const firstMatrix = createFloat32Array(size_x, size_y);
+    const secondMatrixSize: [number, number] = [col * channel, batch * row];
+
+    let secondMatrix = createFloat32Array(size_x, size_y);
+    let a = tf.tensor2d(firstMatrix, firstMatrixSize);
+    let b = tf.tensor2d(secondMatrix, secondMatrixSize);
+    const result = tf.matMul(a, b);
+    const resultData = await result.data();
+    console.log(resultData);
+    expectArraysClose(await result.data(), [
+      175120,  175648,  176176,  176704,  177232,  177760,  178288,  178816,
+      179344,  179872,  180400,  180928,  181456,  181984,  182512,  183040,
+      430096,  431648,  433200,  434752,  436304,  437856,  439408,  440960,
+      442512,  444064,  445616,  447168,  448720,  450272,  451824,  453376,
+      685072,  687648,  690224,  692800,  695376,  697952,  700528,  703104,
+      705680,  708256,  710832,  713408,  715984,  718560,  721136,  723712,
+      940048,  943648,  947248,  950848,  954448,  958048,  961648,  965248,
+      968848,  972448,  976048,  979648,  983248,  986848,  990448,  994048,
+      1195024, 1199648, 1204272, 1208896, 1213520, 1218144, 1222768, 1227392,
+      1232016, 1236640, 1241264, 1245888, 1250512, 1255136, 1259760, 1264384,
+      1450000, 1455648, 1461296, 1466944, 1472592, 1478240, 1483888, 1489536,
+      1495184, 1500832, 1506480, 1512128, 1517776, 1523424, 1529072, 1534720,
+      1704976, 1711648, 1718320, 1724992, 1731664, 1738336, 1745008, 1751680,
+      1758352, 1765024, 1771696, 1778368, 1785040, 1791712, 1798384, 1805056,
+      1959952, 1967648, 1975344, 1983040, 1990736, 1998432, 2006128, 2013824,
+      2021520, 2029216, 2036912, 2044608, 2052304, 2060000, 2067696, 2075392,
+      2214928, 2223648, 2232368, 2241088, 2249808, 2258528, 2267248, 2275968,
+      2284688, 2293408, 2302128, 2310848, 2319568, 2328288, 2337008, 2345728,
+      2469904, 2479648, 2489392, 2499136, 2508880, 2518624, 2528368, 2538112,
+      2547856, 2557600, 2567344, 2577088, 2586832, 2596576, 2606320, 2616064,
+      2724880, 2735648, 2746416, 2757184, 2767952, 2778720, 2789488, 2800256,
+      2811024, 2821792, 2832560, 2843328, 2854096, 2864864, 2875632, 2886400,
+      2979856, 2991648, 3003440, 3015232, 3027024, 3038816, 3050608, 3062400,
+      3074192, 3085984, 3097776, 3109568, 3121360, 3133152, 3144944, 3156736,
+      3234832, 3247648, 3260464, 3273280, 3286096, 3298912, 3311728, 3324544,
+      3337360, 3350176, 3362992, 3375808, 3388624, 3401440, 3414256, 3427072,
+      3489808, 3503648, 3517488, 3531328, 3545168, 3559008, 3572848, 3586688,
+      3600528, 3614368, 3628208, 3642048, 3655888, 3669728, 3683568, 3697408,
+      3744784, 3759648, 3774512, 3789376, 3804240, 3819104, 3833968, 3848832,
+      3863696, 3878560, 3893424, 3908288, 3923152, 3938016, 3952880, 3967744,
+      3999760, 4015648, 4031536, 4047424, 4063312, 4079200, 4095088, 4110976,
+      4126864, 4142752, 4158640, 4174528, 4190416, 4206304, 4222192, 4238080
+    ]);
+  });
+
+  it('rgba32fmatmul2d3216', async () => {
+    const batch = 4;
+    const row = 8;
+    const col = 4;
+    const channel = 4;
+    const size_x = batch * row;
+    const size_y = channel * col;
+
+    const firstMatrixSize: [number, number] = [batch * row, col * channel];
+    const firstMatrix = createFloat32Array(size_x, size_y);
+    const secondMatrixSize: [number, number] = [col * channel, batch * row];
+
+    let secondMatrix = createFloat32Array(size_x, size_y);
+    let a = tf.tensor2d(firstMatrix, firstMatrixSize);
+    let b = tf.tensor2d(secondMatrix, secondMatrixSize);
+    const result = tf.matMul(a, b);
+    const resultData = await result.data();
+    console.log(resultData);
+    expectArraysClose(await result.data(), [
+      43656,   43792,   43928,   44064,   44200,   44336,   44472,   44608,
+      44744,   44880,   45016,   45152,   45288,   45424,   45560,   45696,
+      45832,   45968,   46104,   46240,   46376,   46512,   46648,   46784,
+      46920,   47056,   47192,   47328,   47464,   47600,   47736,   47872,
+      105352,  105744,  106136,  106528,  106920,  107312,  107704,  108096,
+      108488,  108880,  109272,  109664,  110056,  110448,  110840,  111232,
+      111624,  112016,  112408,  112800,  113192,  113584,  113976,  114368,
+      114760,  115152,  115544,  115936,  116328,  116720,  117112,  117504,
+      167048,  167696,  168344,  168992,  169640,  170288,  170936,  171584,
+      172232,  172880,  173528,  174176,  174824,  175472,  176120,  176768,
+      177416,  178064,  178712,  179360,  180008,  180656,  181304,  181952,
+      182600,  183248,  183896,  184544,  185192,  185840,  186488,  187136,
+      228744,  229648,  230552,  231456,  232360,  233264,  234168,  235072,
+      235976,  236880,  237784,  238688,  239592,  240496,  241400,  242304,
+      243208,  244112,  245016,  245920,  246824,  247728,  248632,  249536,
+      250440,  251344,  252248,  253152,  254056,  254960,  255864,  256768,
+      290440,  291600,  292760,  293920,  295080,  296240,  297400,  298560,
+      299720,  300880,  302040,  303200,  304360,  305520,  306680,  307840,
+      309000,  310160,  311320,  312480,  313640,  314800,  315960,  317120,
+      318280,  319440,  320600,  321760,  322920,  324080,  325240,  326400,
+      352136,  353552,  354968,  356384,  357800,  359216,  360632,  362048,
+      363464,  364880,  366296,  367712,  369128,  370544,  371960,  373376,
+      374792,  376208,  377624,  379040,  380456,  381872,  383288,  384704,
+      386120,  387536,  388952,  390368,  391784,  393200,  394616,  396032,
+      413832,  415504,  417176,  418848,  420520,  422192,  423864,  425536,
+      427208,  428880,  430552,  432224,  433896,  435568,  437240,  438912,
+      440584,  442256,  443928,  445600,  447272,  448944,  450616,  452288,
+      453960,  455632,  457304,  458976,  460648,  462320,  463992,  465664,
+      475528,  477456,  479384,  481312,  483240,  485168,  487096,  489024,
+      490952,  492880,  494808,  496736,  498664,  500592,  502520,  504448,
+      506376,  508304,  510232,  512160,  514088,  516016,  517944,  519872,
+      521800,  523728,  525656,  527584,  529512,  531440,  533368,  535296,
+      537224,  539408,  541592,  543776,  545960,  548144,  550328,  552512,
+      554696,  556880,  559064,  561248,  563432,  565616,  567800,  569984,
+      572168,  574352,  576536,  578720,  580904,  583088,  585272,  587456,
+      589640,  591824,  594008,  596192,  598376,  600560,  602744,  604928,
+      598920,  601360,  603800,  606240,  608680,  611120,  613560,  616000,
+      618440,  620880,  623320,  625760,  628200,  630640,  633080,  635520,
+      637960,  640400,  642840,  645280,  647720,  650160,  652600,  655040,
+      657480,  659920,  662360,  664800,  667240,  669680,  672120,  674560,
+      660616,  663312,  666008,  668704,  671400,  674096,  676792,  679488,
+      682184,  684880,  687576,  690272,  692968,  695664,  698360,  701056,
+      703752,  706448,  709144,  711840,  714536,  717232,  719928,  722624,
+      725320,  728016,  730712,  733408,  736104,  738800,  741496,  744192,
+      722312,  725264,  728216,  731168,  734120,  737072,  740024,  742976,
+      745928,  748880,  751832,  754784,  757736,  760688,  763640,  766592,
+      769544,  772496,  775448,  778400,  781352,  784304,  787256,  790208,
+      793160,  796112,  799064,  802016,  804968,  807920,  810872,  813824,
+      784008,  787216,  790424,  793632,  796840,  800048,  803256,  806464,
+      809672,  812880,  816088,  819296,  822504,  825712,  828920,  832128,
+      835336,  838544,  841752,  844960,  848168,  851376,  854584,  857792,
+      861000,  864208,  867416,  870624,  873832,  877040,  880248,  883456,
+      845704,  849168,  852632,  856096,  859560,  863024,  866488,  869952,
+      873416,  876880,  880344,  883808,  887272,  890736,  894200,  897664,
+      901128,  904592,  908056,  911520,  914984,  918448,  921912,  925376,
+      928840,  932304,  935768,  939232,  942696,  946160,  949624,  953088,
+      907400,  911120,  914840,  918560,  922280,  926000,  929720,  933440,
+      937160,  940880,  944600,  948320,  952040,  955760,  959480,  963200,
+      966920,  970640,  974360,  978080,  981800,  985520,  989240,  992960,
+      996680,  1000400, 1004120, 1007840, 1011560, 1015280, 1019000, 1022720,
+      969096,  973072,  977048,  981024,  985000,  988976,  992952,  996928,
+      1000904, 1004880, 1008856, 1012832, 1016808, 1020784, 1024760, 1028736,
+      1032712, 1036688, 1040664, 1044640, 1048616, 1052592, 1056568, 1060544,
+      1064520, 1068496, 1072472, 1076448, 1080424, 1084400, 1088376, 1092352,
+      1030792, 1035024, 1039256, 1043488, 1047720, 1051952, 1056184, 1060416,
+      1064648, 1068880, 1073112, 1077344, 1081576, 1085808, 1090040, 1094272,
+      1098504, 1102736, 1106968, 1111200, 1115432, 1119664, 1123896, 1128128,
+      1132360, 1136592, 1140824, 1145056, 1149288, 1153520, 1157752, 1161984,
+      1092488, 1096976, 1101464, 1105952, 1110440, 1114928, 1119416, 1123904,
+      1128392, 1132880, 1137368, 1141856, 1146344, 1150832, 1155320, 1159808,
+      1164296, 1168784, 1173272, 1177760, 1182248, 1186736, 1191224, 1195712,
+      1200200, 1204688, 1209176, 1213664, 1218152, 1222640, 1227128, 1231616,
+      1154184, 1158928, 1163672, 1168416, 1173160, 1177904, 1182648, 1187392,
+      1192136, 1196880, 1201624, 1206368, 1211112, 1215856, 1220600, 1225344,
+      1230088, 1234832, 1239576, 1244320, 1249064, 1253808, 1258552, 1263296,
+      1268040, 1272784, 1277528, 1282272, 1287016, 1291760, 1296504, 1301248,
+      1215880, 1220880, 1225880, 1230880, 1235880, 1240880, 1245880, 1250880,
+      1255880, 1260880, 1265880, 1270880, 1275880, 1280880, 1285880, 1290880,
+      1295880, 1300880, 1305880, 1310880, 1315880, 1320880, 1325880, 1330880,
+      1335880, 1340880, 1345880, 1350880, 1355880, 1360880, 1365880, 1370880,
+      1277576, 1282832, 1288088, 1293344, 1298600, 1303856, 1309112, 1314368,
+      1319624, 1324880, 1330136, 1335392, 1340648, 1345904, 1351160, 1356416,
+      1361672, 1366928, 1372184, 1377440, 1382696, 1387952, 1393208, 1398464,
+      1403720, 1408976, 1414232, 1419488, 1424744, 1430000, 1435256, 1440512,
+      1339272, 1344784, 1350296, 1355808, 1361320, 1366832, 1372344, 1377856,
+      1383368, 1388880, 1394392, 1399904, 1405416, 1410928, 1416440, 1421952,
+      1427464, 1432976, 1438488, 1444000, 1449512, 1455024, 1460536, 1466048,
+      1471560, 1477072, 1482584, 1488096, 1493608, 1499120, 1504632, 1510144,
+      1400968, 1406736, 1412504, 1418272, 1424040, 1429808, 1435576, 1441344,
+      1447112, 1452880, 1458648, 1464416, 1470184, 1475952, 1481720, 1487488,
+      1493256, 1499024, 1504792, 1510560, 1516328, 1522096, 1527864, 1533632,
+      1539400, 1545168, 1550936, 1556704, 1562472, 1568240, 1574008, 1579776,
+      1462664, 1468688, 1474712, 1480736, 1486760, 1492784, 1498808, 1504832,
+      1510856, 1516880, 1522904, 1528928, 1534952, 1540976, 1547000, 1553024,
+      1559048, 1565072, 1571096, 1577120, 1583144, 1589168, 1595192, 1601216,
+      1607240, 1613264, 1619288, 1625312, 1631336, 1637360, 1643384, 1649408,
+      1524360, 1530640, 1536920, 1543200, 1549480, 1555760, 1562040, 1568320,
+      1574600, 1580880, 1587160, 1593440, 1599720, 1606000, 1612280, 1618560,
+      1624840, 1631120, 1637400, 1643680, 1649960, 1656240, 1662520, 1668800,
+      1675080, 1681360, 1687640, 1693920, 1700200, 1706480, 1712760, 1719040,
+      1586056, 1592592, 1599128, 1605664, 1612200, 1618736, 1625272, 1631808,
+      1638344, 1644880, 1651416, 1657952, 1664488, 1671024, 1677560, 1684096,
+      1690632, 1697168, 1703704, 1710240, 1716776, 1723312, 1729848, 1736384,
+      1742920, 1749456, 1755992, 1762528, 1769064, 1775600, 1782136, 1788672,
+      1647752, 1654544, 1661336, 1668128, 1674920, 1681712, 1688504, 1695296,
+      1702088, 1708880, 1715672, 1722464, 1729256, 1736048, 1742840, 1749632,
+      1756424, 1763216, 1770008, 1776800, 1783592, 1790384, 1797176, 1803968,
+      1810760, 1817552, 1824344, 1831136, 1837928, 1844720, 1851512, 1858304,
+      1709448, 1716496, 1723544, 1730592, 1737640, 1744688, 1751736, 1758784,
+      1765832, 1772880, 1779928, 1786976, 1794024, 1801072, 1808120, 1815168,
+      1822216, 1829264, 1836312, 1843360, 1850408, 1857456, 1864504, 1871552,
+      1878600, 1885648, 1892696, 1899744, 1906792, 1913840, 1920888, 1927936,
+      1771144, 1778448, 1785752, 1793056, 1800360, 1807664, 1814968, 1822272,
+      1829576, 1836880, 1844184, 1851488, 1858792, 1866096, 1873400, 1880704,
+      1888008, 1895312, 1902616, 1909920, 1917224, 1924528, 1931832, 1939136,
+      1946440, 1953744, 1961048, 1968352, 1975656, 1982960, 1990264, 1997568,
+      1832840, 1840400, 1847960, 1855520, 1863080, 1870640, 1878200, 1885760,
+      1893320, 1900880, 1908440, 1916000, 1923560, 1931120, 1938680, 1946240,
+      1953800, 1961360, 1968920, 1976480, 1984040, 1991600, 1999160, 2006720,
+      2014280, 2021840, 2029400, 2036960, 2044520, 2052080, 2059640, 2067200,
+      1894536, 1902352, 1910168, 1917984, 1925800, 1933616, 1941432, 1949248,
+      1957064, 1964880, 1972696, 1980512, 1988328, 1996144, 2003960, 2011776,
+      2019592, 2027408, 2035224, 2043040, 2050856, 2058672, 2066488, 2074304,
+      2082120, 2089936, 2097752, 2105568, 2113384, 2121200, 2129016, 2136832,
+      1956232, 1964304, 1972376, 1980448, 1988520, 1996592, 2004664, 2012736,
+      2020808, 2028880, 2036952, 2045024, 2053096, 2061168, 2069240, 2077312,
+      2085384, 2093456, 2101528, 2109600, 2117672, 2125744, 2133816, 2141888,
+      2149960, 2158032, 2166104, 2174176, 2182248, 2190320, 2198392, 2206464
+    ]);
+  });
+
+  it('rgba32fmatmul4d4444', async () => {
+    const batch = 4;
+    const row = 4;
+    const col = 4;
+    const channel = 4;
+    const size_x = batch * row * col;
+    const size_y = channel;
+
+    const firstMatrixSize: [number, number, number, number] =
+        [batch, row, col, channel];
+    const firstMatrix = createFloat32Array(size_x, size_y);
+    const secondMatrixSize: [number, number, number, number] =
+        [batch, row, col, channel];
+    let secondMatrix = createFloat32Array(size_x, size_y);
+    let a = tf.tensor4d(firstMatrix, firstMatrixSize);
+    let b = tf.tensor4d(secondMatrix, secondMatrixSize);
+    const result = tf.matMul(a, b);
+    const resultData = await result.data();
+    console.log(resultData);
+    expectArraysClose(await result.data(), [
+      90,     100,    110,    120,    202,    228,    254,    280,    314,
+      356,    398,    440,    426,    484,    542,    600,    1722,   1796,
+      1870,   1944,   2090,   2180,   2270,   2360,   2458,   2564,   2670,
+      2776,   2826,   2948,   3070,   3192,   5402,   5540,   5678,   5816,
+      6026,   6180,   6334,   6488,   6650,   6820,   6990,   7160,   7274,
+      7460,   7646,   7832,   11130,  11332,  11534,  11736,  12010,  12228,
+      12446,  12664,  12890,  13124,  13358,  13592,  13770,  14020,  14270,
+      14520,  18906,  19172,  19438,  19704,  20042,  20324,  20606,  20888,
+      21178,  21476,  21774,  22072,  22314,  22628,  22942,  23256,  28730,
+      29060,  29390,  29720,  30122,  30468,  30814,  31160,  31514,  31876,
+      32238,  32600,  32906,  33284,  33662,  34040,  40602,  40996,  41390,
+      41784,  42250,  42660,  43070,  43480,  43898,  44324,  44750,  45176,
+      45546,  45988,  46430,  46872,  54522,  54980,  55438,  55896,  56426,
+      56900,  57374,  57848,  58330,  58820,  59310,  59800,  60234,  60740,
+      61246,  61752,  70490,  71012,  71534,  72056,  72650,  73188,  73726,
+      74264,  74810,  75364,  75918,  76472,  76970,  77540,  78110,  78680,
+      88506,  89092,  89678,  90264,  90922,  91524,  92126,  92728,  93338,
+      93956,  94574,  95192,  95754,  96388,  97022,  97656,  108570, 109220,
+      109870, 110520, 111242, 111908, 112574, 113240, 113914, 114596, 115278,
+      115960, 116586, 117284, 117982, 118680, 130682, 131396, 132110, 132824,
+      133610, 134340, 135070, 135800, 136538, 137284, 138030, 138776, 139466,
+      140228, 140990, 141752, 154842, 155620, 156398, 157176, 158026, 158820,
+      159614, 160408, 161210, 162020, 162830, 163640, 164394, 165220, 166046,
+      166872, 181050, 181892, 182734, 183576, 184490, 185348, 186206, 187064,
+      187930, 188804, 189678, 190552, 191370, 192260, 193150, 194040, 209306,
+      210212, 211118, 212024, 213002, 213924, 214846, 215768, 216698, 217636,
+      218574, 219512, 220394, 221348, 222302, 223256, 239610, 240580, 241550,
+      242520, 243562, 244548, 245534, 246520, 247514, 248516, 249518, 250520,
+      251466, 252484, 253502, 254520
+    ]);
+  });
+
+  // tslint:disable-next-line:max-line-length
+  it('rgba32fmatmul2d1616 matMul works when we do not check coords because tiles fit perfectly into input dimensions',
+     async () => {
+       const inputData = [
+         0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,  11,  12,  13,
+         14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26,  27,
+         28,  29,  30,  31,  32,  33,  34,  35,  36,  37,  38,  39,  40,  41,
+         42,  43,  44,  45,  46,  47,  48,  49,  50,  51,  52,  53,  54,  55,
+         56,  57,  58,  59,  60,  61,  62,  63,  64,  65,  66,  67,  68,  69,
+         70,  71,  72,  73,  74,  75,  76,  77,  78,  79,  80,  81,  82,  83,
+         84,  85,  86,  87,  88,  89,  90,  91,  92,  93,  94,  95,  96,  97,
+         98,  99,  100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111,
+         112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125,
+         126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139,
+         140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153,
+         154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167,
+         168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181,
+         182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195,
+         196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209,
+         210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223,
+         224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237,
+         238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251,
+         252, 253, 254, 255
+       ];
+       const a = tf.tensor2d(inputData, [16, 16]);
+       const b = tf.tensor2d(inputData, [16, 16]);
+       const expected = new Float32Array([
+         19840,  19960,  20080,  20200,  20320,  20440,  20560,  20680,  20800,
+         20920,  21040,  21160,  21280,  21400,  21520,  21640,  50560,  50936,
+         51312,  51688,  52064,  52440,  52816,  53192,  53568,  53944,  54320,
+         54696,  55072,  55448,  55824,  56200,  81280,  81912,  82544,  83176,
+         83808,  84440,  85072,  85704,  86336,  86968,  87600,  88232,  88864,
+         89496,  90128,  90760,  112000, 112888, 113776, 114664, 115552, 116440,
+         117328, 118216, 119104, 119992, 120880, 121768, 122656, 123544, 124432,
+         125320, 142720, 143864, 145008, 146152, 147296, 148440, 149584, 150728,
+         151872, 153016, 154160, 155304, 156448, 157592, 158736, 159880, 173440,
+         174840, 176240, 177640, 179040, 180440, 181840, 183240, 184640, 186040,
+         187440, 188840, 190240, 191640, 193040, 194440, 204160, 205816, 207472,
+         209128, 210784, 212440, 214096, 215752, 217408, 219064, 220720, 222376,
+         224032, 225688, 227344, 229000, 234880, 236792, 238704, 240616, 242528,
+         244440, 246352, 248264, 250176, 252088, 254000, 255912, 257824, 259736,
+         261648, 263560, 265600, 267768, 269936, 272104, 274272, 276440, 278608,
+         280776, 282944, 285112, 287280, 289448, 291616, 293784, 295952, 298120,
+         296320, 298744, 301168, 303592, 306016, 308440, 310864, 313288, 315712,
+         318136, 320560, 322984, 325408, 327832, 330256, 332680, 327040, 329720,
+         332400, 335080, 337760, 340440, 343120, 345800, 348480, 351160, 353840,
+         356520, 359200, 361880, 364560, 367240, 357760, 360696, 363632, 366568,
+         369504, 372440, 375376, 378312, 381248, 384184, 387120, 390056, 392992,
+         395928, 398864, 401800, 388480, 391672, 394864, 398056, 401248, 404440,
+         407632, 410824, 414016, 417208, 420400, 423592, 426784, 429976, 433168,
+         436360, 419200, 422648, 426096, 429544, 432992, 436440, 439888, 443336,
+         446784, 450232, 453680, 457128, 460576, 464024, 467472, 470920, 449920,
+         453624, 457328, 461032, 464736, 468440, 472144, 475848, 479552, 483256,
+         486960, 490664, 494368, 498072, 501776, 505480, 480640, 484600, 488560,
+         492520, 496480, 500440, 504400, 508360, 512320, 516280, 520240, 524200,
+         528160, 532120, 536080, 540040
+       ]);
+
+       const c = tf.matMul(a, b);
+       const cData = await c.data();
+       test_util.expectArraysClose(cData, expected);
+     });
+});
+
+
+describeWebGPU('webgputexturepad', () => {
+  // pass when wpt = 1.
+  it('padtexture0d1', async () => {
+    const x = tf.tensor4d(
+        [
+          1, 2, 3, 4, 5,  6, 7, 8, 9, 10, 1, 2, 3, 4, 5,
+          6, 7, 8, 9, 10, 1, 2, 3, 4, 5,  6, 7, 8, 9, 10,
+          1, 2, 3, 4, 5,  6, 7, 8, 9, 10, 1, 2, 3, 4, 5
+        ],
+        [1, 3, 3, 5]);
+    const result = tf.pad(x, [[0, 0], [1, 1], [1, 1], [0, 0]], 0);
+    console.log(await result.data());
+    console.log(result.shape);
+    expectArraysClose(await result.data(), [
+      0, 0, 0, 0, 0, 0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0, 0,
+      0, 0, 0, 0, 0, 0,  0,  0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,  10, 1, 2,
+      3, 4, 5, 0, 0, 0,  0,  0, 0, 0, 0, 0, 0, 6, 7, 8, 9, 10, 1,  2, 3,
+      4, 5, 6, 7, 8, 9,  10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,  2,  3, 4,
+      5, 6, 7, 8, 9, 10, 1,  2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0,  0,  0, 0,
+      0, 0, 0, 0, 0, 0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0
+    ]);
+  });
+
+  // pass when wpt = 1.
+  it('padtexture0d2', async () => {
+    const x = tf.tensor4d([1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 2, 2]);
+    const result = tf.pad(x, [[0, 0], [1, 1], [1, 1], [0, 0]], 0);
+    console.log(await result.data());
+    console.log(result.shape);
+    expectArraysClose(await result.data(), [
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 0, 0,
+      0, 0, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ]);
+  });
+
+  // failed due to sampler not supported.
+  it('padtexture0d4', async () => {
+    const x = tf.tensor4d([3], [1, 1, 1, 1]);
+    const result = tf.pad(x, [[0, 0], [1, 1], [1, 1], [0, 0]], 0);
+    console.log(await result.data());
+    console.log(result.shape);
+    expectArraysClose(await result.data(), [0, 0, 0, 0, 3, 0, 0, 0, 0]);
+  });
+});
+
+describeWebGPU('webgputexturemaxpool', () => {
+  // Pass, MaxPoolWithFilterSizeEqualsOneProgram
+  it('maxpooltexf1 x=[1, 3, 3, 2] f=[1,1] s=1 [0] => [0]', async () => {
+    const x = tf.tensor4d(
+        [1, 2, 3, 4, 5, 6, 7, 9, 8, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 3, 2]);
+    // const filter = [1, 1];
+    // const stride = [2, 2];
+    const pad = 'same';
+    const result = tf.maxPool(x, [1, 1], [2, 2], pad);
+    console.log(result.shape);
+    // 1,2,2,2
+    console.log(await result.data());
+
+    expectArraysClose(await result.data(), [1, 2, 5, 6, 4, 5, 8, 9]);
+  });
+
+  // Pass, Pool2DProgram
+  it('maxpooltexf30 x=[1, 3, 3, 2] f=[1,1] s=1 [0] => [0]', async () => {
+    const x = tf.tensor4d(
+        [1, 2, 3, 4, 5, 6, 7, 9, 8, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 3, 2]);
+    // const filter = [1, 1];
+    // const stride = [2, 2];
+    const pad = 'same';
+    const result = tf.maxPool(x, [3, 3], [2, 2], pad);
+    console.log(result.shape);
+    // 1,2,2,2
+    console.log(await result.data());
+
+    expectArraysClose(await result.data(), [8, 9, 8, 6, 8, 9, 8, 9]);
+  });
+
+  // Pass
+  it('maxpooltexf3v x=[1,1,1] f=[1,1] s=1 [0] => [0]', async () => {
+    const x = tf.tensor4d(
+        [1, 2, 3, 4, 5, 6, 7, 9, 8, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 3, 2]);
+    // const filter = [1, 1];
+    // const stride = [2, 2];
+    const pad = 'valid';
+    const result = tf.maxPool(x, [3, 3], [2, 2], pad);
+    console.log(result.shape);
+    // 1,2,2,2
+    console.log(await result.data());
+
+    expectArraysClose(await result.data(), [8, 9]);
+  });
+});
+
+describeWebGPU('webgputextureconv', () => {
+  // SUCCESS
+  it('conmm1 conv2d conv2d x=[2,2,2,2] f=[1,1,2,2] s=1 d=1 p=0', async () => {
+    const inputDepth = 2;
+    const inShape: [number, number, number, number] = [2, 2, 2, inputDepth];
+    const outputDepth = 2;
+    const fSize = 1;
+    const pad = 0;
+    const stride = 1;
+
+    // row is 0,1,2,3,4,5,6,7.
+    const x = tf.tensor4d(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], inShape);
+    const w =
+        tf.tensor4d([-1, 1, -2, 0.5], [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([2, 2, 2, 2]);
+    const expected =
+        [-5, 2, -11, 5, -17, 8, -23, 11, -29, 14, -35, 17, -41, 20, -47, 23];
+
+    expectArraysClose(await result.data(), expected);
+  });
+
+  // Pass
+  it('conmm2 x=[3,3,2] f=[2,2,2,1] s=1 d=1 p=valid', async () => {
+    const pad = 'valid';
+    const stride = 1;
+
+    const x = tf.tensor3d(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90],
+        [3, 3, 2]);
+    const w = tf.tensor4d([.1, .2, .3, .4, .5, .6, .7, .8], [2, 2, 2, 1]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+
+    const resultData = await result.data();
+    console.log(resultData);
+    expect(result.shape).toEqual([2, 2, 1]);
+    expectArraysClose(resultData, new Float32Array([25.6, 53.5, 157.0, 220.9]));
+  });
+
+
+  // Fail, 4D squeeze to 3D input not supported
+  it('conmm21 x=[1,3,3,2] f=[2,2,2,1] s=1 d=1 p=valid', async () => {
+    const pad = 'valid';
+    const stride = 1;
+
+    const x = tf.tensor4d(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90],
+        [1, 3, 3, 2]);
+    const w = tf.tensor4d([1, 2, 5, 4, 5, 6, 7, 8], [2, 2, 2, 1]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+
+    const resultData = await result.data();
+    console.log(resultData);
+    console.log(result.shape);
+    expect(result.shape).toEqual([1, 2, 2, 1]);
+    expectArraysClose(resultData, new Float32Array([262, 545, 1588, 2249]));
+  });
+
+  // Pass
+  it('conmm22 x=[1,3,3,2] f=[2,2,2,2] s=1 d=1 p=valid', async () => {
+    const pad = 'valid';
+    const stride = 1;
+
+    const x = tf.tensor4d(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90],
+        [1, 3, 3, 2]);
+    const w = tf.tensor4d(
+        [1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2, 2]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+
+    const resultData = await result.data();
+    console.log(resultData);
+    console.log(result.shape);
+    expect(result.shape).toEqual([1, 2, 2, 2]);
+    expectArraysClose(
+        resultData,
+        new Float32Array([196, 240, 431, 518, 1126, 1380, 1649, 2018]));
+    // 25.600000381469727,53.5,157,220.89999389648438
+  });
+
+  it('conmm3 x=[2,2,2,1] f=[1,1,1,1] s=1 d=1 p=0', async () => {
+    const inputDepth = 1;
+    const inShape: [number, number, number, number] = [2, 2, 2, inputDepth];
+    const outputDepth = 1;
+    const fSize = 1;
+    const pad = 0;
+    const stride = 1;
+
+    const x = tf.tensor4d([1, 2, 3, 4, 5, 6, 7, 8], inShape);
+    const w = tf.tensor4d([2], [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([2, 2, 2, 1]);
+    const expected = [2, 4, 6, 8, 10, 12, 14, 16];
+
+    expectArraysClose(await result.data(), expected);
+  });
+
+  it('x=[2,1,2,2] f=[1,1,1,1] s=1 d=1 p=0 NCHW', async () => {
+    const inputDepth = 1;
+    const inShape: [number, number, number, number] = [2, inputDepth, 2, 2];
+    const outputDepth = 1;
+    const fSize = 1;
+    const pad = 0;
+    const stride = 1;
+    const dataFormat = 'NCHW';
+
+    const x = tf.tensor4d([1, 2, 3, 4, 5, 6, 7, 8], inShape);
+    const w = tf.tensor4d([2], [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad, dataFormat);
+    expect(result.shape).toEqual([2, 1, 2, 2]);
+    const expected = [2, 4, 6, 8, 10, 12, 14, 16];
+
+    expectArraysClose(await result.data(), expected);
+  });
+
+  it('conmm x=[4,2,1] f=[4,2,1,1] s=1 d=1 p=same', async () => {
+    const inputDepth = 1;
+    const outputDepth = 1;
+    const pad = 'same';
+    const stride = 1;
+    const dataFormat = 'NHWC';
+    const dilation = 1;
+
+    const x = tf.tensor3d([1, 2, 3, 4, 5, 6, 7, 8], [4, 2, inputDepth]);
+    const w =
+        tf.tensor4d([3, 1, 5, 0, 2, 7, 8, 9], [4, 2, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad, dataFormat, dilation);
+
+    const resultData = await result.data();
+    expect(result.shape).toEqual([4, 2, 1]);
+    expectArraysClose(resultData, [133, 66, 200, 102, 108, 58, 56, 58]);
+  });
+
+  it('x=[4,2,1] f=[4,2,1,1] s=1 d=1 p=explicit', async () => {
+    const inputDepth = 1;
+    const outputDepth = 1;
+    const pad =
+        [[0, 0], [1, 2], [0, 1], [0, 0]] as tf.backend_util.ExplicitPadding;
+    const stride = 1;
+    const dataFormat = 'NHWC';
+    const dilation = 1;
+
+    const x = tf.tensor3d([1, 2, 3, 4, 5, 6, 7, 8], [4, 2, inputDepth]);
+    const w =
+        tf.tensor4d([3, 1, 5, 0, 2, 7, 8, 9], [4, 2, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad, dataFormat, dilation);
+
+    const resultData = await result.data();
+    expect(result.shape).toEqual([4, 2, 1]);
+    expectArraysClose(resultData, [133, 66, 200, 102, 108, 58, 56, 58]);
+  });
+
+  it('x=[2,2,1] f=[2,2,1,1] s=1 d=1 p=same', async () => {
+    const inputDepth = 1;
+    const inputShape: [number, number, number] = [2, 2, inputDepth];
+    const outputDepth = 1;
+    const fSize = 2;
+    const pad = 'same';
+    const stride = 1;
+    const dataFormat = 'NHWC';
+    const dilation = 1;
+
+    const x = tf.tensor3d([1, 2, 3, 4], inputShape);
+    const w =
+        tf.tensor4d([3, 1, 5, 0], [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad, dataFormat, dilation);
+
+    const resultData = await result.data();
+    expect(result.shape).toEqual([2, 2, 1]);
+    expectArraysClose(resultData, new Float32Array([20, 26, 13, 12]));
+  });
+
+  it('x=[2,2,1] f=[1,1,1,2] s=1 d=1 p=0', async () => {
+    const inputDepth = 1;
+    const inputShape: [number, number, number] = [2, 2, inputDepth];
+    const outputDepth = 1;
+    const fSize = 1;
+    const pad = 0;
+    const stride = 1;
+
+    const x = tf.tensor3d([1, 2, 3, 4], inputShape);
+    const w = tf.tensor4d([2], [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+
+    expectArraysClose(await result.data(), [2, 4, 6, 8]);
+  });
+
+
+  it('conv4dmm3x3c1', async () => {
+    const x = tf.tensor4d(
+        [
+          0,
+          1,
+          3,
+          1,
+          2,
+          3,
+          2,
+          2,
+          3,
+          4,
+          5,
+          1,
+          4,
+          2,
+          1,
+          0,
+          1,
+          2,
+        ],
+        [1, 3, 3, 2]);
+    const f = tf.tensor4d(
+        [
+          0, 1, 2, 3, 4, 5, 1, 1, 1, 0, 1, 2, 3, 4, 5, 1, 1, 1,
+          0, 1, 2, 3, 4, 5, 1, 1, 1, 0, 1, 2, 3, 4, 4, 5, 1, 1,
+        ],
+        [3, 3, 2, 2]);
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [66, 75]);
+  });
+
+  // pass when run alone
+  it('conv4dmem3x3b', async () => {
+    const x = tf.tensor4d(
+        [
+          0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2,
+          3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5,
+        ],
+        [1, 3, 3, 4]);
+    const f = tf.tensor4d(
+        [
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8
+        ],
+        [3, 3, 4, 4]);
+
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+
+    expectArraysClose(await result.data(), [439, 445, 433, 412]);
+  });
+
+
+  // Pass when alone
+  it('conv4dmm5x5f3c2', async () => {
+    const x = tf.tensor4d(
+        [
+          0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1,
+          2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3,
+          4, 5, 1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+        ],
+        [1, 5, 5, 2]);
+    const f = tf.tensor4d(
+        [
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 3
+        ],
+        [3, 3, 2, 2]);
+
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+
+    expectArraysClose(await result.data(), [
+      243, 229, 226, 172, 169, 175, 250, 265, 244, 245, 182, 149, 295, 249, 264,
+      267, 278, 251
+    ]);
+  });
+
+  // Pass
+  it('conv4dmm4x4f3c2', async () => {
+    const x = tf.tensor4d(
+        [
+          0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0,
+          1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2,
+        ],
+        [1, 4, 4, 2]);
+    const f = tf.tensor4d(
+        [
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 3
+        ],
+        [3, 3, 2, 2]);
+
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+
+    expectArraysClose(
+        await result.data(), [223, 207, 260, 225, 219, 229, 214, 226]);
+  });
+
+  // Pass when alone
+  it('conv4dmem5x5f3c4', async () => {
+    const x = tf.tensor4d(
+        [
+          0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3, 4,
+          5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1,
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4,
+          5, 1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2,
+          3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+        ],
+        [1, 5, 5, 4]);
+    const f = tf.tensor4d(
+        [
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8
+        ],
+        [3, 3, 4, 4]);
+
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+
+    expectArraysClose(await result.data(), [
+      496, 526, 484, 433, 446, 442, 483, 479, 397, 396, 395, 376,
+      525, 499, 518, 528, 502, 515, 519, 478, 469, 460, 451, 469,
+      424, 433, 415, 415, 526, 500, 465, 511, 488, 551, 569, 551
+    ]);
+  });
+
+  // Pass
+  it('conv4dmm5x5f5', async () => {
+    const x = tf.tensor4d(
+        [
+          0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3, 4,
+          5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1,
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4,
+          5, 1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2,
+          3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+        ],
+        [1, 5, 5, 4]);
+    const f = tf.tensor4d(
+        [
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4,
+          5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0,
+          1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1,
+          2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6,
+          7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+          3, 4, 5, 6, 7, 8, 9, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1,
+          2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6,
+          7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7,
+          8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3,
+          4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4,
+          5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0,
+          1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1,
+          2, 3, 4, 5, 6, 7, 8, 0, 1,
+        ],
+        [5, 5, 4, 4]);
+
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+
+    expectArraysClose(await result.data(), [1333, 1341, 1288, 1253]);
+  });
+
+  // Pass
+  it('conv4dmm7x7', async () => {
+    const x = tf.tensor4d(
+        [
+          0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 6,
+          7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3,
+          4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0,
+          1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4,
+          2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3,
+          4, 5, 6, 7, 8, 9, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2,
+          1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5,
+          1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2,
+          3, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 1, 3, 1, 2, 1, 3, 1,
+        ],
+        [1, 7, 7, 4]);
+    const f = tf.tensor4d(
+        [
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4,
+          5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0,
+          1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1,
+          2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6,
+          7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+          3, 4, 5, 6, 7, 8, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1,
+          2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6,
+          7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7,
+          8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3,
+          4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4,
+          5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0,
+          1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+          6, 7, 8, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4,
+          5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0,
+          1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1,
+          2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6,
+          7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7,
+          8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3,
+          4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7,
+          8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3,
+          4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4,
+          5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0,
+          1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1,
+          2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6,
+          7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7,
+          8, 0,
+        ],
+        [7, 7, 4, 4]);
+
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+
+    expectArraysClose(await result.data(), [2503, 2550, 2453, 2401]);
+  });
+
+  it('conv2dmm5x5', async () => {
+    const x = tf.tensor4d(
+        [
+          0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4,
+          2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+        ],
+        [1, 5, 5, 1]);
+    const f = tf.tensor4d([0, 1, 2, 3, 4, 5, 6, 7, 8], [3, 3, 1, 1]);
+
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+
+    expectArraysClose(
+        await result.data(), [103, 84, 89, 68, 81, 101, 151, 183, 212]);
+  });
+
+  it('conv2dmm4x4', async () => {
+    const x = tf.tensor4d(
+        [0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0], [1, 4, 4, 1]);
+    const f = tf.tensor4d([0, 1, 2, 3, 4, 5, 6, 7, 8], [3, 3, 1, 1]);
+
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+
+    expectArraysClose(await result.data(), [121, 99, 103, 62]);
+  });
+
+  // Pass
+  it('conv2df1', async () => {
+    const x = tf.tensor4d(
+        [
+          2, 3, 2, 0, 0, 0, 1, 3, 1, 2, 3, 2, 0, 0, 0, 1,
+          3, 1, 2, 3, 2, 0, 0, 0, 1, 3, 1, 2, 3, 2, 0, 0
+        ],
+        [1, 4, 4, 2]);
+    // const x = tf.tensor4d([1, 1, 3, 1, 2, 3, 2, 1, 2], [1, 3, 3, 1]);
+    const f = tf.tensor4d([1, 2, 3, 4], [1, 1, 2, 2]);
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+
+    expectArraysClose(await result.data(), [
+      11, 16, 2,  4,  0, 0, 10, 14, 7,  10, 9, 14, 0, 0,  3, 4,
+      6,  10, 11, 16, 2, 4, 0,  0,  10, 14, 7, 10, 9, 14, 0, 0
+    ]);
+  });
+});
+// texturesqueeze
+describeWebGPU('webgputextureaddsqueeze', () => {
+  it('texturergba32faddsqueeze4d11681', async () => {
+    const x = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [1, 16, 8, 1]);
+
+    const y = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [1, 16, 8, 1]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28,
+      30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24,
+      26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20,
+      22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16,
+      18, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+      32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,
+      28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22
+    ]);
+  });
+});
+
+describeWebGPU('webgputexturergba32fbounds', () => {
+  it('texturergba32fboundsadd2d365', async () => {
+    const x = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17,
+          18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  1,  2,  3,  4,
+          5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,
+          4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,
+          3,  4,  5,  6,  7,  8,  9,  10, 11, 11, 12, 13, 14, 15, 16, 17, 18,
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  1,  2,  3,  4,  5,  6,  7,  8,
+          9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,  4,  5,  6,  7,
+          8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,  4,  5,  6,
+          7,  8,  9,  10, 11, 10, 20, 30
+        ],
+        [3, 65]);
+
+    const y = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17,
+          18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  1,  2,  3,  4,
+          5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,
+          4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,
+          3,  4,  5,  6,  7,  8,  9,  10, 11, 11, 12, 13, 14, 15, 16, 17, 18,
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  1,  2,  3,  4,  5,  6,  7,  8,
+          9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,  4,  5,  6,  7,
+          8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,  4,  5,  6,
+          7,  8,  9,  10, 11, 10, 20, 30
+        ],
+        [3, 65]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16,
+      18, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34,
+      36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34,
+      36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 20, 40, 60
+    ]);
+  });
+
+  it('texturergba32fboundsadd2d644', async () => {
+    const x = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11,
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [64, 4]);
+
+    const y = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11,
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [64, 4]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 2,  4,  6,  8,  10, 12, 14,
+      16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14,
+      16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14,
+      16, 18, 20, 22
+    ]);
+  });
+
+  it('texturergba32fboundsadd2d464', async () => {
+    const x = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11,
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [4, 64]);
+
+    const y = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11,
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [4, 64]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 2,  4,  6,  8,  10, 12, 14,
+      16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14,
+      16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14,
+      16, 18, 20, 22
+    ]);
+  });
+
+
+  it('texturergba32fboundsadd2d264', async () => {
+    const x = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [2, 64]);
+
+    const y = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [2, 64]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28,
+      30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24,
+      26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20,
+      22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16,
+      18, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+      32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,
+      28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22
+    ]);
+  });
+});
+
+describeWebGPU('webgputexturebroadcast', () => {
+  it('texturergba32fbroadcastadd2d1 2D+2D broadcast each with 1 dim',
+     async () => {
+       const a = tf.tensor2d([1, 2, 5], [1, 3]);
+       const b = tf.tensor2d([7, 3], [2, 1]);
+       const res = tf.add(a, b);
+       expect(res.shape).toEqual([2, 3]);
+       // 8,9,8,4,5,4
+       expectArraysClose(await res.data(), [8, 9, 12, 4, 5, 8]);
+     });
+
+  it('texturergba32fbroadcastadd2d2 2D+2D broadcast each with 1 dim',
+     async () => {
+       const a = tf.tensor2d([1, 2, 5], [1, 3]);
+       const b = tf.tensor2d([7, 3, 7, 3, 7, 3], [2, 3]);
+       const res = tf.add(a, b);
+       console.log(await res.data());
+       expect(res.shape).toEqual([2, 3]);
+       // 8,5,8,4,9,4
+       expectArraysClose(await res.data(), [8, 5, 12, 4, 9, 8]);
+     });
+
+  it('texturergba32fbroadcastadd2da3 2D+2D broadcast each with 1 dim',
+     async () => {
+       const a = tf.tensor2d([1, 2, 5, 1, 2, 5], [2, 3]);
+       const b = tf.tensor2d([7, 3], [2, 1]);
+       const res = tf.add(a, b);
+       console.log(await res.data());
+       expect(res.shape).toEqual([2, 3]);
+       //[8, 9, 5, 4, 5, 5]
+       expectArraysClose(await res.data(), [8, 9, 12, 4, 5, 8]);
+     });
+
+  it('texturergba32fbroadcastadd2da4 2D+2D broadcast each with 1 dim',
+     async () => {
+       const a = tf.tensor2d([1, 2, 5, 1], [2, 2]);
+       const b = tf.tensor2d([7, 3], [2, 1]);
+       const res = tf.add(a, b);
+       console.log(await res.data());
+       expect(res.shape).toEqual([2, 2]);
+       expectArraysClose(await res.data(), [8, 9, 8, 4]);
+     });
+
+  it('texturergba32fbroadcastadd1 A + B broadcast 2D + 1D', async () => {
+    const a = tf.tensor2d([1, 2, -3, -4], [2, 2]);
+    const b = tf.tensor1d([1, 2]);
+    // const b = tf.tensor2d([1, 2,1,2],[2,2]);
+
+    const result = tf.add(a, b);
+
+    expect(result.shape).toEqual([2, 2]);
+    const expected = [2, 4, -2, -2];
+
+    expectArraysClose(await result.data(), expected);
+  });
+
+  it('texturergba32fbroadcastaddds2 A + B broadcasting same rank Tensors different shape',
+     async () => {
+       const a = tf.tensor2d([1, 2, -3, -4], [2, 2]);
+       // const b = tf.tensor2d([2, 3], [2, 1]);
+       const b = tf.tensor2d([2, 3], [1, 2]);
+
+       const result = tf.add(a, b);
+       console.log(await result.data());
+
+       expect(result.shape).toEqual([2, 2]);
+       const expected = [3, 5, -1, -1];
+
+       expectArraysClose(await result.data(), expected);
+     });
+
+  it('texturergba32fxxbroadcastaddds3 A + B broadcasting same rank Tensors different shape',
+     async () => {
+       const a = tf.tensor2d([1, 2, -3, -4], [2, 2]);
+       const b = tf.tensor2d([2, 3], [2, 1]);
+       // const b = tf.tensor2d([2, 3], [1, 2]);
+
+       const result = tf.add(a, b);
+       console.log(await result.data());
+
+       expect(result.shape).toEqual([2, 2]);
+       const expected = [3, 4, 0, -1];
+
+       expectArraysClose(await result.data(), expected);
+     });
+
+  it('texturergba32fxxadd2d83', async () => {
+    const x = tf.tensor2d(
+        [
+          1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4,
+          5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8
+        ],
+        [8, 3]);
+
+    const y = tf.tensor2d(
+        [
+          1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4,
+          5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8
+        ],
+        [8, 3]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 2,  4,  6,  8,
+      10, 12, 14, 16, 2,  4,  6,  8,  10, 12, 14, 16
+    ]);
+  });
+});
+
+describeWebGPU('webgputexturescalar', () => {
+  it('texturergba32faddscalar c + A', async () => {
+    const c = tf.scalar(5);
+    const a = tf.tensor1d([1, 2, 3]);
+
+    const result = tf.add(c, a);
+
+    expectArraysClose(await result.data(), [6, 7, 8]);
+  });
+});
+
+describeWebGPU('webgputextureadd', () => {
+  it('texturergba32fadd1d', async () => {
+    const x =
+        tf.tensor1d([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+
+    const y =
+        tf.tensor1d([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(
+        await result.data(),
+        [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32]);
+  });
+
+  it('texturergba32fadd4d1', async () => {
+    const x = tf.tensor4d(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], [2, 2, 2, 2]);
+
+    const y = tf.tensor4d(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], [2, 2, 2, 2]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(
+        await result.data(),
+        [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32]);
+  });
+
+
+
+  it('texturergba32fadd4dx4442', async () => {
+    const x = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [4, 4, 4, 2]);
+
+    const y = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [4, 4, 4, 2]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28,
+      30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24,
+      26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20,
+      22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16,
+      18, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+      32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,
+      28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22
+    ]);
+  });
+
+  it('texturergba32fadd2d642', async () => {
+    const x = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [64, 2]);
+
+    const y = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [64, 2]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28,
+      30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24,
+      26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20,
+      22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16,
+      18, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+      32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,
+      28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22
+    ]);
+  });
+
+  it('texturergba32fadd2d28', async () => {
+    const x = tf.tensor2d(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], [2, 8]);
+
+    const y = tf.tensor2d(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], [2, 8]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(
+        await result.data(),
+        [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32]);
+  });
+
+  it('texturergba32fadd2d88', async () => {
+    const x = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5, 6, 7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3, 4, 5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1, 2, 3, 4,  5,  6,  7,  8,  9,  10
+        ],
+        [8, 8]);
+
+    const y = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5, 6, 7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3, 4, 5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1, 2, 3, 4,  5,  6,  7,  8,  9,  10
+        ],
+        [8, 8]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28,
+      30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24,
+      26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20
+    ]);
+  });
+
+  it('texturergba32fadd2d653', async () => {
+    const x = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17,
+          18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  1,  2,  3,  4,
+          5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,
+          4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,
+          3,  4,  5,  6,  7,  8,  9,  10, 11, 11, 12, 13, 14, 15, 16, 17, 18,
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  1,  2,  3,  4,  5,  6,  7,  8,
+          9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,  4,  5,  6,  7,
+          8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,  4,  5,  6,
+          7,  8,  9,  10, 11, 10, 20, 30
+        ],
+        [65, 3]);
+
+    const y = tf.tensor2d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17,
+          18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5,  6,  7,  8,  9,  1,  2,  3,  4,
+          5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,
+          4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,
+          3,  4,  5,  6,  7,  8,  9,  10, 11, 11, 12, 13, 14, 15, 16, 17, 18,
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  1,  2,  3,  4,  5,  6,  7,  8,
+          9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,  4,  5,  6,  7,
+          8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 1,  2,  3,  4,  5,  6,
+          7,  8,  9,  10, 11, 10, 20, 30
+        ],
+        [65, 3]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16,
+      18, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34,
+      36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34,
+      36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 20, 40, 60
+    ]);
+  });
+
+
+  it('texturergba32fadd2d83', async () => {
+    const x = tf.tensor2d(
+        [
+          1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4,
+          5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8
+        ],
+        [8, 3]);
+
+    const y = tf.tensor2d(
+        [
+          1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4,
+          5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8
+        ],
+        [8, 3]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 2,  4,  6,  8,
+      10, 12, 14, 16, 2,  4,  6,  8,  10, 12, 14, 16
+    ]);
+  });
+
+  it('texturergba32fadd3d882', async () => {
+    const x = tf.tensor3d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [8, 8, 2]);
+
+    const y = tf.tensor3d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [8, 8, 2]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28,
+      30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24,
+      26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20,
+      22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16,
+      18, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+      32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,
+      28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22
+    ]);
+  });
+
+  it('texturergba32fadd4dx2842', async () => {
+    const x = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [2, 8, 4, 2]);
+
+    const y = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [2, 8, 4, 2]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28,
+      30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24,
+      26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20,
+      22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16,
+      18, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+      32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,
+      28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22
+    ]);
+  });
+
+  it('texturergba32fadd4d4422', async () => {
+    const x = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5, 6, 7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3, 4, 5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1, 2, 3, 4,  5,  6,  7,  8,  9,  10
+        ],
+        [4, 4, 2, 2]);
+
+    const y = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5, 6, 7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3, 4, 5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1, 2, 3, 4,  5,  6,  7,  8,  9,  10
+        ],
+        [4, 4, 2, 2]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28,
+      30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24,
+      26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20
+    ]);
+  });
+
+  it('texturergba32fadd4d2422', async () => {
+    const x = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 21, 32
+        ],
+        [2, 4, 2, 2]);
+
+    const y = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 21, 32
+        ],
+        [2, 4, 2, 2]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 42, 64
+    ]);
+  });
+
+
+  it('texturergba32fadd4d4222', async () => {
+    const x = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 21, 32
+        ],
+        [4, 2, 2, 2]);
+
+    const y = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 21, 32
+        ],
+        [4, 2, 2, 2]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 42, 64
+    ]);
+  });
+
+
+  it('texturergba32fadd4d2242', async () => {
+    const x = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 21, 32
+        ],
+        [2, 2, 4, 2]);
+
+    const y = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 21, 32
+        ],
+        [2, 2, 4, 2]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 42, 64
+    ]);
+  });
+
+
+  it('texturergba32faddix4444', async () => {
+    const x = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11,
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [4, 4, 4, 4]);
+
+    const y = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11,
+          1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+          17, 18, 1,  2,  3,  4,  5,  6,  7, 8,  9,  10, 11, 12, 13, 14,
+          15, 16, 17, 18, 1,  2,  3,  4,  5, 6,  7,  8,  9,  10, 11, 12,
+          13, 14, 15, 16, 17, 18, 1,  2,  3, 4,  5,  6,  7,  8,  9,  10,
+          11, 12, 13, 14, 15, 16, 17, 18, 1, 2,  3,  4,  5,  6,  7,  8,
+          9,  1,  2,  3,  4,  5,  6,  7,  8, 9,  10, 11, 12, 13, 14, 15,
+          16, 17, 18, 1,  2,  3,  4,  5,  6, 7,  8,  9,  10, 11, 12, 13,
+          14, 15, 16, 17, 18, 1,  2,  3,  4, 5,  6,  7,  8,  9,  10, 11
+        ],
+        [4, 4, 4, 4]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36,
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18,
+      20, 22, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 2,  4,  6,  8,  10, 12, 14, 16, 18, 2,  4,  6,  8,  10, 12, 14,
+      16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14,
+      16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 2,  4,  6,  8,  10, 12, 14,
+      16, 18, 20, 22
+    ]);
+  });
+
+  it('texturergba32fadd4d2224', async () => {
+    const x = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 21, 32
+        ],
+        [2, 2, 2, 4]);
+
+    const y = tf.tensor4d(
+        [
+          1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+          17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 21, 32
+        ],
+        [2, 2, 2, 4]);
+
+    const result = tf.add(x, y);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+      34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 42, 64
+    ]);
+  });
+});
+describeWebGPU('webgputextureadd', () => {
+  it('texture2dadd257x3', async () => {
+    const size_x = 257;
+    const size_y = 3;
+    const firstMatrixSize: [number, number] = [size_x, size_y];
+    const firstMatrix = createFloat32Array(size_x, size_y);
+    const secondMatrixSize: [number, number] = [size_x, size_y];
+    let secondMatrix = createFloat32Array(size_x, size_y);
+    let a = tf.tensor2d(firstMatrix, firstMatrixSize);
+    let b = tf.tensor2d(secondMatrix, secondMatrixSize);
+    console.log(await tf.add(a, b).data());
+    compareAddFloat32Array(
+        await tf.add(a, b).data(), firstMatrix, secondMatrix, size_x, size_y);
+  });
+
+  it('texture2dadd257x37', async () => {
+    const size_x = 257;
+    const size_y = 37;
+    const firstMatrixSize: [number, number] = [size_x, size_y];
+    const firstMatrix = createFloat32Array(size_x, size_y);
+    const secondMatrixSize: [number, number] = [size_x, size_y];
+    let secondMatrix = createFloat32Array(size_x, size_y);
+    let a = tf.tensor2d(firstMatrix, firstMatrixSize);
+    let b = tf.tensor2d(secondMatrix, secondMatrixSize);
+    console.log(await tf.add(a, b).data());
+    compareAddFloat32Array(
+        await tf.add(a, b).data(), firstMatrix, secondMatrix, size_x, size_y);
+  });
+
+  it('texture4dadd2x257x9x37', async () => {
+    const batch = 2;
+    const row = 257;
+    const col = 9;
+    const channel = 37
+    const size_x = batch * row * col;
+    const size_y = channel;
+
+    const firstMatrixSize: [number, number, number, number] =
+        [batch, row, col, channel];
+    const firstMatrix = createFloat32Array(size_x, size_y);
+    const secondMatrixSize: [number, number, number, number] =
+        [batch, row, col, channel];
+    let secondMatrix = createFloat32Array(size_x, size_y);
+    let a = tf.tensor4d(firstMatrix, firstMatrixSize);
+    let b = tf.tensor4d(secondMatrix, secondMatrixSize);
+    console.log(await tf.add(a, b).data());
+    compareAddFloat32Array(
+        await tf.add(a, b).data(), firstMatrix, secondMatrix, size_x, size_y);
+  });
+
+  it('texture4dadd257x257x2x3', async () => {
+    const batch = 257;
+    const row = 257;
+    const col = 2;
+    const channel = 3;
+    const size_x = batch * row * col;
+    const size_y = channel;
+
+    const firstMatrixSize: [number, number, number, number] =
+        [batch, row, col, channel];
+    const firstMatrix = createFloat32Array(size_x, size_y);
+    const secondMatrixSize: [number, number, number, number] =
+        [batch, row, col, channel];
+    let secondMatrix = createFloat32Array(size_x, size_y);
+    let a = tf.tensor4d(firstMatrix, firstMatrixSize);
+    let b = tf.tensor4d(secondMatrix, secondMatrixSize);
+    console.log(await tf.add(a, b).data());
+    compareAddFloat32Array(
+        await tf.add(a, b).data(), firstMatrix, secondMatrix, size_x, size_y);
+  });
+
+  it('texture4dadd1332', async () => {
+    const x = tf.tensor4d(
+        [
+          0,
+          1,
+          3,
+          1,
+          2,
+          3,
+          2,
+          2,
+          3,
+          4,
+          5,
+          1,
+          4,
+          2,
+          1,
+          0,
+          1,
+          2,
+        ],
+        [1, 3, 3, 2]);
+    const result = tf.add(x, x);
+    console.log(await result.data());
+    expectArraysClose(
+        await result.data(),
+        [0, 2, 6, 2, 4, 6, 4, 4, 6, 8, 10, 2, 8, 4, 2, 0, 2, 4]);
+  });
+
+  it('texture3dadd332', async () => {
+    const x = tf.tensor3d(
+        [
+          0,
+          1,
+          3,
+          1,
+          2,
+          3,
+          2,
+          2,
+          3,
+          4,
+          5,
+          1,
+          4,
+          2,
+          1,
+          0,
+          1,
+          2,
+        ],
+        [3, 3, 2]);
+    const result = tf.add(x, x);
+    console.log(await result.data());
+    expectArraysClose(
+        await result.data(),
+        [0, 2, 6, 2, 4, 6, 4, 4, 6, 8, 10, 2, 8, 4, 2, 0, 2, 4]);
+    // console.log(result.shape);
+  });
+
+  // Pass when run alone.
+  it('texture2dadd36', async () => {
+    const x = tf.tensor2d(
+        [
+          0,
+          1,
+          3,
+          1,
+          2,
+          3,
+          2,
+          2,
+          3,
+          4,
+          5,
+          1,
+          4,
+          2,
+          1,
+          0,
+          1,
+          2,
+        ],
+        [3, 6]);
+    const result = tf.add(x, x);
+    console.log(await result.data());
+    expectArraysClose(
+        await result.data(),
+        [0, 2, 6, 2, 4, 6, 4, 4, 6, 8, 10, 2, 8, 4, 2, 0, 2, 4]);
+    // console.log(result.shape);
+  });
+
+  it('texturerelu', async () => {
+    const a = tf.tensor4d(
+        [1, 2, 3, -3, 1, -2, 5, -3, 1, -2, 5, -3, 1, -2, 7, -3, 1, 9],
+        [1, 3, 3, 2]);
+    const result = tf.relu(a);
+    console.log(await result.data());
+    expectArraysClose(
+        await result.data(),
+        [1, 2, 3, 0, 1, 0, 5, 0, 1, 0, 5, 0, 1, 0, 7, 0, 1, 9]);
+  });
+});
+
+
+function compareAddFloat32Array(
+    result: any, firstMatrix: any, secondMatrix: any, w: number, h: number) {
+  for (let i = 0; i < w * h; i++) {
+    if (Math.abs(result[i] - (firstMatrix[i] + secondMatrix[i])) > 0.01) {
+      console.error(name + ' mismatch at ' + i);
+      return i + 1;
+    }
+  }
+  return 0;
+}
+
+/*
+    function createFloat32Array(w, h) {
+      const matrix = new Float32Array(w * h);
+      for (let i = 0; i < w * h; i++) {
+        matrix[i] = i + 1;  // Math.random();
+      }
+      return matrix;
+    }
+
+    function compareAddFloat32Array(result, firstMatrix, secondMatrix, w, h) {
+      for (let i = 0; i < w * h; i++) {
+        if (Math.abs(result[i] - (firstMatrix[i] + secondMatrix[i])) > 0.01) {
+          console.log(name + ' mismatch at ' + i);
+          return i+1;
+        }
+      }
+      return 0;
+    }
+
+    const size_x = 257;
+    const size_y = 3;
+    const firstMatrixSize= [size_x, size_y];
+    const firstMatrix = createFloat32Array(size_x, size_y);
+    const secondMatrixSize= [size_x, size_y];
+    let secondMatrix = createFloat32Array(size_x, size_y);
+    let a = tf.tensor2d(firstMatrix, firstMatrixSize);
+    let b = tf.tensor2d(secondMatrix, secondMatrixSize);
+    console.log(await tf.add(a, b).data());
+    compareAddFloat32Array(await tf.add(a, b).data(),
+   firstMatrix,secondMatrix,size_x,  size_y);
+
+*/
