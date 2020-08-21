@@ -28,7 +28,9 @@ export class PadProgram implements WebGPUProgram {
   userCode: string;
   dispatchLayout: {x: number[]};
   dispatch: [number, number, number];
-  variableNames = ['x'];
+  // TODO(texture).
+  variableNames: string[] = [];
+  variableTextureNames = ['x'];
   workPerThread = 8;
   workGroupSize: [number, number, number] = [16, 1, 1];
 
@@ -38,6 +40,7 @@ export class PadProgram implements WebGPUProgram {
     this.outputShape = paddings.map(
         (p, i) => p[0] /* beforePad */ + xShape[i] + p[1] /* afterPad */);
     const rank = xShape.length;
+    console.log('this.outputShape = ' + this.outputShape);
     const size = util.sizeFromShape(this.outputShape);
     const type = getCoordsDataType(rank);
     this.dispatchLayout = flatDispatchLayout(this.outputShape);
@@ -51,32 +54,39 @@ export class PadProgram implements WebGPUProgram {
     const endValue = rank > 1 ? `${type}(${end})` : `${end}`;
 
     const leftPadCondition =
-        rank > 1 ? `any(lessThan(outC, start))` : `outC < start`;
+        rank > 1 ? `any(lessThan(outCoords, start))` : `outCoords < start`;
     const rightPadCondition =
-        rank > 1 ? `any(greaterThanEqual(outC, end))` : `outC >= end`;
+        rank > 1 ? `any(greaterThanEqual(outCoords, end))` : `outCoords >= end`;
 
     const unpackedCoords = rank > 1 ?
         ['coords[0]', 'coords[1]', 'coords[2]', 'coords[3]'].slice(0, rank) :
         'coords';
+    console.log(unpackedCoords);
+    const dims = ['coords[0]', 'coords[1]', 'coords[2]', 'coords[3]'].slice(
+        0, this.outputShape.length);
+    dims.map(d => `${d}`).join(', ');
 
+    const dims2 =
+        ['outCoords[0]', 'outCoords[1]', 'outCoords[2]', 'outCoords[3]'].slice(
+            0, this.outputShape.length);
+    dims2.map(d => `${d}`).join(', ');
     this.userCode = `
       ${type} start = ${startValue};
       ${type} end = ${endValue};
 
       void main() {
         int index = int(gl_GlobalInvocationID.x);
-
         for (int i = 0; i < ${this.workPerThread}; i++) {
           int flatIndex = index * ${this.workPerThread} + i;
-
           if (flatIndex < ${size}) {
-            ${type} outC = getCoordsFromFlatIndex(flatIndex);
+            ${type} outCoords = getCoordsFromFlatIndex(flatIndex);
 
             if (${leftPadCondition} || ${rightPadCondition}) {
-              setOutput(flatIndex, ${constantValue});
+			  ${type} coords = outCoords;
+              setOutput(${dims}, ${constantValue});
             } else {
-              ${type} coords = outC - start;
-              setOutput(flatIndex, getX(${unpackedCoords}));
+              ${type} coords = outCoords - start;
+              setOutput(${dims2},  getX(${unpackedCoords}));
             }
           }
         }
