@@ -16,8 +16,9 @@
  */
 
 import {backend_util, util} from '@tensorflow/tfjs-core';
-import {getCoordsDataType} from '../shader_preprocessor';
 
+import {getCoordsDataType} from '../shader_preprocessor';
+// import {getTextureShapeFromLogicalShape} from '../webgpu_texture_util';
 import {computeDispatch, flatDispatchLayout} from '../webgpu_util';
 
 import {WebGPUProgram} from './webgpu_program';
@@ -47,22 +48,27 @@ export class BinaryOpProgram implements WebGPUProgram {
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
 
+    const dims = ['coords[0]', 'coords[1]', 'coords[2]', 'coords[3]'].slice(
+        0, this.outputShape.length);
+    dims.map(d => `${d}`).join(', ');
+
     if (shapesFit) {
+      console.error('TODO(texture): not tried');
       this.userCode = `
           float binaryOperation(float a, float b) {
             ${op}
           }
 
           void main() {
-            int index = int(gl_GlobalInvocationID.x);
-
-            float a = A[index];
-            float b = B[index];
-            setOutput(index, binaryOperation(a, b));
+            //int index = int(gl_GlobalInvocationID.x);
+            float a = imageLoad(A, ivec2(gl_GlobalInvocationID.xy)).r;
+            float b = imageLoad(B, ivec2(gl_GlobalInvocationID.xy)).r;
+            imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(binaryOperation(a, b), 100.0, 101.0, 102.0));
           }
         `;
       this.shaderKey = `binary2${op}`;
     } else if (sizeFit) {
+      console.error('TODO(texture): not tried');
       const type = getCoordsDataType(this.outputShape.length);
       this.userCode = `
       float binaryOperation(float a, float b) {
@@ -73,10 +79,12 @@ export class BinaryOpProgram implements WebGPUProgram {
         int index = int(gl_GlobalInvocationID.x);
 
         ${type} coords = getCoordsFromFlatIndex(index);
+        float a = imageLoad(A, ivec2(index, 0)).r;
+        float b = imageLoad(B, ivec2(index, 0)).r;
 
-        float a = getAAtOutCoords(coords);
-        float b = getBAtOutCoords(coords);
-        setOutput(index, binaryOperation(a, b));
+        //float a = getAAtOutCoords(coords);
+        //float b = getBAtOutCoords(coords);
+        imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(binaryOperation(a, b), 0.0, 0.0, 0.0));
       }
       `;
     } else {
@@ -95,10 +103,10 @@ export class BinaryOpProgram implements WebGPUProgram {
 
           if(flatIndex < ${size}) {
             ${type} coords = getCoordsFromFlatIndex(flatIndex);
-
             float a = getAAtOutCoords(coords);
             float b = getBAtOutCoords(coords);
-            setOutput(flatIndex, binaryOperation(a, b));
+            // setOutput(flatIndex, binaryOperation(a, b));// this works too.
+            setOutput(${dims}, binaryOperation(a, b));
           }
         }
       }

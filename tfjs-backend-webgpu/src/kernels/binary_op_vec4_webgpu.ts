@@ -18,6 +18,7 @@
 import {backend_util, util} from '@tensorflow/tfjs-core';
 
 import {computeDispatch, flatDispatchLayout} from '../webgpu_util';
+// import {computeDispatch} from '../webgpu_util';
 
 import {WebGPUProgram} from './webgpu_program';
 
@@ -26,6 +27,7 @@ export class BinaryOpVec4Program implements WebGPUProgram {
   shaderKey: string;
   userCode: string;
   dispatchLayout: {x: number[]};
+  // dispatchLayout: {x: number[], y: number[]};
   dispatch: [number, number, number];
   variableNames = ['A', 'B'];
   workPerThread = 4;
@@ -34,16 +36,16 @@ export class BinaryOpVec4Program implements WebGPUProgram {
 
   constructor(op: string, aShape: number[], bShape: number[]) {
     // TODO(jiajia.qin@intel.com): Heuristically select a good work group size.
-    const workGroupSizeX = 128;
+    const workGroupSizeX = 32;
     this.workGroupSize = [workGroupSizeX, 1, 1];
     this.outputShape = backend_util.assertAndGetBroadcastShape(aShape, bShape);
     this.dispatchLayout = flatDispatchLayout(this.outputShape);
     const size = util.sizeFromShape(this.outputShape) / this.workPerThread;
-    const fitShape = size % workGroupSizeX === 0;
+    const fitShape = false;  // = size % workGroupSizeX === 0;
 
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
-        [this.workPerThread, 1, 1]);
+        [1, this.workPerThread, 1]);
 
     if (fitShape) {
       this.userCode = `
@@ -53,9 +55,13 @@ export class BinaryOpVec4Program implements WebGPUProgram {
 
       void main() {
         int index = int(gl_GlobalInvocationID.x);
+		    /*
         vec4 a = A[index];
         vec4 b = B[index];
-        setOutput(index, binaryOperation(a, b));
+        */
+        vec4 a = getAAtOutCoords();
+        vec4 b = getBAtOutCoords();
+        setOutput(binaryOperation(a, b));
       }
     `;
     } else {
@@ -66,11 +72,15 @@ export class BinaryOpVec4Program implements WebGPUProgram {
 
       void main() {
         int index = int(gl_GlobalInvocationID.x);
-        if (index < ${size})
+        // TODO(tetxure): if (index < ${size})
         {
+          /*
           vec4 a = A[index];
           vec4 b = B[index];
-          setOutput(index, binaryOperation(a, b));
+          */
+          vec4 a = getAAtOutCoords();
+          vec4 b = getBAtOutCoords();
+          setOutput(binaryOperation(a, b));
         }
       }
     `;
