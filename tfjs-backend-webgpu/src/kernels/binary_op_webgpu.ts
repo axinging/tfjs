@@ -28,7 +28,10 @@ export class BinaryOpProgram implements WebGPUProgram {
   userCode: string;
   dispatchLayout: {x: number[]};
   dispatch: [number, number, number];
-  variableNames = ['A', 'B'];
+  // TODO:
+  variableNames: string[] = [];
+
+  variableTextureNames = ['A', 'B'];
   workPerThread: number;
   workGroupSize: [number, number, number];
 
@@ -56,9 +59,11 @@ export class BinaryOpProgram implements WebGPUProgram {
           void main() {
             int index = int(gl_GlobalInvocationID.x);
 
-            float a = A[index];
-            float b = B[index];
-            setOutput(index, binaryOperation(a, b));
+            // float a = A[index];
+            // float b = B[index];
+            float a = imageLoad(A, ivec2(index, 0)).r;
+            float b = imageLoad(B, ivec2(index, 0)).r;
+            imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(binaryOperation(a, b), 0.0, 0.0, 0.0));
           }
         `;
       this.shaderKey = `binary2${op}`;
@@ -73,10 +78,12 @@ export class BinaryOpProgram implements WebGPUProgram {
         int index = int(gl_GlobalInvocationID.x);
 
         ${type} coords = getCoordsFromFlatIndex(index);
+        float a = imageLoad(A, ivec2(index, 0)).r;
+        float b = imageLoad(B, ivec2(index, 0)).r;
 
-        float a = getAAtOutCoords(coords);
-        float b = getBAtOutCoords(coords);
-        setOutput(index, binaryOperation(a, b));
+        //float a = getAAtOutCoords(coords);
+        //float b = getBAtOutCoords(coords);
+        imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(binaryOperation(a, b), 0.0, 0.0, 0.0));
       }
       `;
     } else {
@@ -96,9 +103,12 @@ export class BinaryOpProgram implements WebGPUProgram {
           if(flatIndex < ${size}) {
             ${type} coords = getCoordsFromFlatIndex(flatIndex);
 
-            float a = getAAtOutCoords(coords);
-            float b = getBAtOutCoords(coords);
-            setOutput(flatIndex, binaryOperation(a, b));
+            //float a = getAAtOutCoords(coords);
+            //float b = getBAtOutCoords(coords);
+            float a = imageLoad(A, ivec2(index, 0)).r;
+            float b = imageLoad(B, ivec2(index, 0)).r;
+            imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(binaryOperation(a, b), 0.0, 0.0, 0.0));
+            //setOutput(flatIndex, binaryOperation(a, b));
           }
         }
       }
