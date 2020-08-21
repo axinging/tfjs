@@ -14,8 +14,8 @@
  * limitations under the License.
  * =============================================================================
  */
-
-import {BinaryOpSharedProgram} from './binary_op_shared_webgpu';
+// TODO(texture): revert this when shared binary is ready.
+// import {BinaryOpSharedProgram} from './binary_op_shared_webgpu';
 import {BinaryOpProgram} from './binary_op_webgpu';
 
 export const MUL = 'return a * b;';
@@ -45,6 +45,8 @@ export const MAX = CHECK_NAN_SNIPPET + `
 `;
 export function getBinaryProgram(
     op: string, aShape: number[], bShape: number[]) {
+  // TODO(texture): revert this when shared binary is ready.
+  /*
   const useSharedMemoryWithA =
       aShape.length === 1 && bShape.length > 1 && aShape[0] < 2048;
   const useSharedMemoryWithB =
@@ -54,4 +56,6 @@ export function getBinaryProgram(
   } else {
     return new BinaryOpProgram(op, aShape, bShape);
   }
+  */
+  return new BinaryOpProgram(op, aShape, bShape);
 }

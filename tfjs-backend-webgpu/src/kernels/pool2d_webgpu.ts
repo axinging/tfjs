@@ -28,7 +28,9 @@ export class Pool2DProgram implements WebGPUProgram {
   userCode: string;
   dispatchLayout: {x: number[], y: number[], z: number[]};
   dispatch: [number, number, number];
-  variableNames = ['x'];
+  // TODO(texture).
+  variableNames: string[] = [];
+  variableTextureNames = ['x'];
   uniforms = 'ivec2 pad, stride, dilation, convDims, filterDims;';
   // TODO(jiajia.qin@intel.com): Dynamically choose different workGroupSize and
   // workPerThead for different output shapes.
@@ -60,6 +62,15 @@ export class Pool2DProgram implements WebGPUProgram {
           return 0.0;
         }
         return getX(batch, xR, xC, d);
+        /*
+        int texR, texC;
+
+        texR = int(dot(vec3(batch, xR, xC), vec3(${convInfo.inShape[1]} * ${
+        convInfo.inShape[2]}, ${convInfo.inShape[2]}, 1)) );
+        texC = d;
+
+        return imageLoad(x, ivec2(texC,texR)).r;
+        */
       }
 
       void main() {
@@ -93,6 +104,16 @@ export class Pool2DProgram implements WebGPUProgram {
                 if (d < ${this.outputShape[3]})
                 {
                   float value = getValue(batch, xR, xC, d);
+                  /*
+                  int texR, texC;
+
+                  texR = int(dot(vec3(batch, xR, xC), vec3(${
+        convInfo.inShape[1]} * ${convInfo.inShape[2]}, ${
+        convInfo.inShape[2]}, 1)) );
+                  texC = d;
+        
+                  float value = imageLoad(x, ivec2(texC,texR)).r;
+                  */
                   ${updateSnippet}
                 }
                 else
@@ -108,6 +129,15 @@ export class Pool2DProgram implements WebGPUProgram {
             if (d < ${this.outputShape[3]})
             {
               setOutput(batch, coords[1], coords[2], d, ${returnValue});
+              /*
+              ivec4 outCoord = ivec4(batch, coords[1], coords[2], d);
+              int texR2 = int(dot(vec3(outCoord[0], outCoord[1], outCoord[2]), vec3(${
+        convInfo.outShape[1]} * ${convInfo.outShape[2]}, ${
+        convInfo.outShape[2]}, 1)) );
+              int texC2 = outCoord[3];
+              imageStore(result, ivec2(texC2,texR2), vec4(${
+        returnValue}, 0.0, 0.0, 0.0));
+        */
             }
             else
             {

@@ -27,9 +27,10 @@ export class Conv2DNaiveProgram implements WebGPUProgram {
   userCode: string;
   dispatchLayout: {x: number[], y: number[], z: number[]};
   dispatch: [number, number, number];
-  variableNames = ['x', 'W'];
+  variableNames: string[] = [];
+  variableTextureNames = ['x', 'W'];
   uniforms = 'ivec2 filterDims, pad, stride, dilation;';
-  workGroupSize: [number, number, number] = [4, 8, 4];
+  workGroupSize: [number, number, number] = [4, 16, 1];
 
   constructor(
       convInfo: backend_util.Conv2DInfo, addBias = false,
@@ -73,23 +74,39 @@ export class Conv2DNaiveProgram implements WebGPUProgram {
       ${activationSnippet}
       float readInp(int batch, int row, int col, int chan) {
         ivec4 coord = ivec4(batch, row, col, chan);
-        return coordsInBounds(coord, xShape) ?
-          getX(batch, row, col, chan) : 0;
+        int texR = int( dot(vec3(batch, row, col),
+              vec3(${convInfo.inShape[1]} * ${convInfo.inShape[2]} , ${
+        convInfo.inShape[2]} , 1)) );
+        int texC = chan;
+		
+        //return coordsInBounds(coord, xShape) ? imageLoad(x, ivec2(texR,texC)).r: 0.0;
+        return imageLoad(x, ivec2(row,col)).r;
       }
 
       float readFilt(int row, int col, int xChannel, int outChannel) {
         ivec4 coord = ivec4(row, col, xChannel, outChannel);
-        return coordsInBounds(coord, wShape) ?
-          getW(row, col, xChannel, outChannel) : 0;
+        int texR = int(  dot(vec3(row, col, xChannel),
+        vec3(${convInfo.filterShape[1]} * ${convInfo.filterShape[2]} , ${
+        convInfo.filterShape[2]} , 1)) );
+        int texC = outChannel;
+        //return coordsInBounds(coord, wShape) ?  imageLoad(W, ivec2(texR,texC)).r: 0.0;
+          //getW(row, col, xChannel, outChannel) : 0;
+        // return imageLoad(W, ivec2(texR,texC)).r;
+        return imageLoad(W, ivec2(row,col)).r;
       }
 
       void writeResult(int batch, int row, int col, int chan, float value) {
         ivec4 coord = ivec4(batch, row, col, chan);
-        if (coordsInBounds(coord, outShape)) {
+        //if (coordsInBounds(coord, ${convInfo.outShape})) {
           ${addBiasSnippet}
           ${applyActivationSnippet}
-          setOutput(batch, row, col, chan, value);
-        }
+          //setOutput(batch, row, col, chan, value);
+        int texR =int(  dot(vec3(batch, row, col),
+        vec3(${convInfo.outShape[1]} * ${convInfo.outShape[2]} , ${
+        convInfo.outShape[2]} , 1)) );
+        int texC = chan;
+		  imageStore(result, ivec2(texR, texC), vec4(value, 0.0, 0.0, 0.0));
+        //}
       }
 
       void main() {
@@ -101,13 +118,14 @@ export class Conv2DNaiveProgram implements WebGPUProgram {
 
         for (int row = 0; row < filterDims[0]; ++row) {
           for (int col = 0; col < filterDims[1]; ++col) {
-            for (int xChannel = 0; xChannel < xShape[3]; ++xChannel) {
+            for (int xChannel = 0; xChannel < ${
+        convInfo.inShape[3]}; ++xChannel) {
               float v = readInp(batch,
                   pad[0] + coords[1] * stride[0] + dilation[0] * row,
                   pad[1] + coords[2] * stride[1] + dilation[1] * col,
                   xChannel);
               float f = readFilt(row, col, xChannel, outChannel);
-              acc += v * f;
+              acc += v*f;
             }
           }
         }

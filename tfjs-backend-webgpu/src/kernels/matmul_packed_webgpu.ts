@@ -17,6 +17,7 @@
 
 import {util} from '@tensorflow/tfjs-core';
 import {computeDispatch, tilesFitEvenlyIntoShape} from '../webgpu_util';
+// import {getTextureShapeFromLogicalShape} from '../webgpu_util';
 
 import {matMulHeader} from './matmul_webgpu';
 import {WebGPUProgram} from './webgpu_program';
@@ -27,8 +28,8 @@ export function makeMatMulPackedSource(workPerThread: number[]): string {
 
     const int RowPerThread = ${workPerThread[1]};
     const int ColPerThread = ${workPerThread[0]};
-    const int TileAOuter = int(gl_WorkGroupSize.y) * RowPerThread;
-    const int TileBOuter = int(gl_WorkGroupSize.x) * ColPerThread;
+    const int TileAOuter = int(gl_WorkGroupSize.y) * RowPerThread; //16
+    const int TileBOuter = int(gl_WorkGroupSize.x) * ColPerThread; //4
     const int TileInner = TileAOuter > TileBOuter ? TileAOuter : TileBOuter;
 
     shared float mm_Asub[TileAOuter][TileInner];
@@ -42,6 +43,7 @@ export function makeMatMulPackedSource(workPerThread: number[]): string {
       int globalCol = int(gl_GlobalInvocationID.x) * ColPerThread;
 
       int numTiles = (dimInner - 1) / TileInner + 1;
+      float numTiles_ = float(dimInner - 1) / float(TileInner + 1);
 
       float acc[RowPerThread][ColPerThread];
       float ACached;
@@ -54,10 +56,13 @@ export function makeMatMulPackedSource(workPerThread: number[]): string {
         }
       }
 
-      const int ColPerThreadA = TileInner / int(gl_WorkGroupSize.x);
-      int tileColA = int(gl_LocalInvocationID.x) * ColPerThreadA;
       const int RowPerThreadB = TileInner / int(gl_WorkGroupSize.y);
+	    // RowPerThreadB = 1
       int tileRowB = int(gl_LocalInvocationID.y) * RowPerThreadB;
+
+      const int ColPerThreadA = TileInner / int(gl_WorkGroupSize.x);
+	    // ColPerThreadA = 4
+      int tileColA = int(gl_LocalInvocationID.x) * ColPerThreadA;
 
       // Loop over shared dimension.
       for (int t = 0; t < numTiles; t++) {
@@ -76,11 +81,10 @@ export function makeMatMulPackedSource(workPerThread: number[]): string {
         for (int innerRow = 0; innerRow < RowPerThreadB; innerRow++) {
           for (int innerCol = 0; innerCol < ColPerThread; innerCol++) {
             int inputRow = tileRowB + innerRow;
-            int inputCol = tileCol + innerCol;
-
+            int inputCol = tileCol + innerCol;   
             mm_Bsub[inputRow][inputCol] = mm_readB(
               t * TileInner + inputRow,
-              globalCol + innerCol);;
+              globalCol + innerCol);
           }
         }
 
@@ -90,7 +94,7 @@ export function makeMatMulPackedSource(workPerThread: number[]): string {
         for (int k = 0; k < TileInner; k++) {
           for (int inner = 0; inner < ColPerThread; inner++) {
             BCached[inner] = mm_Bsub[k][tileCol + inner];
-          }
+          } //TileInner = 16
 
           for (int innerRow = 0; innerRow < RowPerThread; innerRow++) {
             ACached = mm_Asub[tileRow + innerRow][k];
@@ -123,9 +127,12 @@ export class MatMulPackedProgram implements WebGPUProgram {
   shaderKey: string;
   userCode: string;
   dispatchLayout: {x: number[], y: number[], z: number[]};
+  // dispatchLayout: {x: number[], y: number[]};
   dispatch: [number, number, number];
   workPerThread: number;
-  variableNames = ['A', 'B'];
+  // TODO(texture).
+  variableNames: string[] = [];
+  variableTextureNames = ['A', 'B'];
   workGroupSize: [number, number, number] = [16, 16, 1];
 
   constructor(
@@ -138,7 +145,7 @@ export class MatMulPackedProgram implements WebGPUProgram {
     this.outputShape = outputShape;
     this.dispatchLayout = {x: [2], y: [1], z: [0]};
     this.dispatch = computeDispatch(
-        this.dispatchLayout, this.outputShape, this.workGroupSize,
+        this.dispatchLayout, outputShape, this.workGroupSize,
         [workPerThread, workPerThread, 1]);
     // If dispaching number is one, it means only one work group is running.
     // For modern GPUs, it supports multiple work groups running in parallel.
@@ -166,28 +173,28 @@ export class MatMulPackedProgram implements WebGPUProgram {
     let sampleA;
     if (transposeA === false) {
       sampleA = fitA ?
-          `A[row * dimInner + col]` :
+          `imageLoad(A, ivec2(col,row)).r` :
           `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
-            A[row * dimInner + col] : 0`;
+            imageLoad(A, ivec2(col,row)).r : 0`;
     } else {
       sampleA = fitA ?
-          `A[col * dimAOuter + row]` :
+          `imageLoad(A, ivec2(row, col)).r` :
           `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
-            A[col * dimAOuter + row] : 0`;
+          imageLoad(A, ivec2(row, col)).r : 0`;
     }
 
     const fitB = tilesFitEvenlyIntoShape(tileSizeB, bShape.slice(1));
     let sampleB;
     if (transposeB === false) {
       sampleB = fitB ?
-          `B[row * dimBOuter + col]` :
+          `imageLoad(B, ivec2(col,row)).r` :
           `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
-            B[row * dimBOuter + col] : 0`;
+          imageLoad(B, ivec2(col,row)).r : 0`;
     } else {
       sampleB = fitB ?
-          `B[col * dimInner + row]` :
+          `imageLoad(B, ivec2(row, col)).r` :
           `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
-            B[col * dimInner + row] : 0`;
+          imageLoad(B, ivec2(row, col)).r : 0`;
     }
 
     this.userCode = `
@@ -205,9 +212,14 @@ export class MatMulPackedProgram implements WebGPUProgram {
       float mm_readB(int row, int col) {
         return ${sampleB};
       }
-
+      /*
       void mm_write(int row, int col, float value) {
         setOutput(row * dimBOuter + col, value);
+      }
+      */
+      void mm_write(int row, int col, float value) {
+        // TODO: Figure out why need vec4 here.
+        imageStore(result, ivec2(col, row), vec4(value, 0.0, 0.0, 0.0));
       }
 
       void main() {

@@ -32,6 +32,7 @@ export interface WebGPUProgram {
   // dispatch specifies geometry of thread groups - derived from dispatchLayout.
   dispatch: [number, number, number];
   variableNames: string[];
+  variableTextureNames?: string[];
   uniforms?: string;
   // Size of register cache in one dimension (assumes square cache).
   // Each thread writes to workPerThread * workPerThread locations in the output
@@ -52,31 +53,27 @@ export interface TensorData {
   dtype: DataType;
 }
 
-export interface BindingInfo {
-  resource: {offset: number, size: number, buffer: GPUBuffer};
-}
-
 export const makeBindGroup =
     (device: GPUDevice, bindGroupLayout: GPUBindGroupLayout,
-     inputs: BindingInfo[], output: BindingInfo, uniforms?: BindingInfo) => {
+     inputs: GPUBindingResource[], output: GPUBindingResource,
+     uniforms?: GPUBindingResource) => {
       const bindings = [output, ...inputs];
       if (uniforms) {
         bindings.push(uniforms);
       }
       return device.createBindGroup({
         layout: bindGroupLayout,
-        entries: bindings.map((b, i) => ({binding: i, resource: b.resource})),
+        entries: bindings.map((b, i) => ({binding: i, resource: b})),
       });
     };
 
 export const compileProgram =
     (glslang: Glslang, device: GPUDevice, program: WebGPUProgram,
      inputsData: shader_preprocessor.InputInfo[], output: TensorInfo,
-     uniforms?: BindingInfo): WebGPUBinary => {
+     outShapeInfo: shader_preprocessor.ShapeInfo): WebGPUBinary => {
       const outputData = {dtype: output.dtype, shape: output.shape};
-
-      const source =
-          shader_preprocessor.makeShader(inputsData, outputData, program);
+      const source = shader_preprocessor.makeShader(
+          inputsData, outputData, outShapeInfo, program);
       const result = glslang.compileGLSLZeroCopy(source, 'compute', false);
       if (result.data.length === 0) {
         throw new Error('Shader compilation failed');
