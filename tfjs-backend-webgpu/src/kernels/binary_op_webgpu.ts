@@ -18,7 +18,8 @@
 import {backend_util, util} from '@tensorflow/tfjs-core';
 import {getCoordsDataType} from '../shader_preprocessor';
 
-import {computeDispatch, flatDispatchLayout} from '../webgpu_util';
+// computeDispatch
+import {computeDispatch} from '../webgpu_util';
 
 import {WebGPUProgram} from './webgpu_program';
 
@@ -26,7 +27,8 @@ export class BinaryOpProgram implements WebGPUProgram {
   outputShape: number[];
   shaderKey: string;
   userCode: string;
-  dispatchLayout: {x: number[]};
+  // dispatchLayout: {x: number[]};
+  dispatchLayout: {x: number[], y: number[]};
   dispatch: [number, number, number];
   // TODO:
   variableNames: string[] = [];
@@ -34,21 +36,27 @@ export class BinaryOpProgram implements WebGPUProgram {
   variableTextureNames = ['A', 'B'];
   workPerThread: number;
   workGroupSize: [number, number, number];
+  y: [1];
 
   constructor(op: string, aShape: number[], bShape: number[]) {
     // TODO(jiajia.qin@intel.com): Heuristically select a good work group size.
-    const workGroupSizeX = 128;
+    const workGroupSizeX = 1;
     this.workGroupSize = [workGroupSizeX, 1, 1];
     this.outputShape = backend_util.assertAndGetBroadcastShape(aShape, bShape);
-    this.dispatchLayout = flatDispatchLayout(this.outputShape);
+    this.dispatchLayout = {
+      x: [0],
+      y: [1]
+    };  // flatDispatchLayout(this.outputShape);
     const size = util.sizeFromShape(this.outputShape);
     const sizeFit = size % workGroupSizeX === 0;
     const shapesFit = util.arraysEqual(aShape, bShape) && sizeFit;
-    this.workPerThread = shapesFit || sizeFit ? 1 : 2;
+    this.workPerThread = 1;  // shapesFit || sizeFit ? 1 : 2;
 
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
+    // this.dispatch = [10, 3, 1];
+
 
     if (shapesFit) {
       this.userCode = `
@@ -57,13 +65,17 @@ export class BinaryOpProgram implements WebGPUProgram {
           }
 
           void main() {
-            int index = int(gl_GlobalInvocationID.x);
+            //int index = int(gl_GlobalInvocationID.x);
 
             // float a = A[index];
             // float b = B[index];
-            float a = imageLoad(A, ivec2(index, 0)).r;
-            float b = imageLoad(B, ivec2(index, 0)).r;
-            imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(binaryOperation(a, b), 0.0, 0.0, 0.0));
+            // float a = imageLoad(A, ivec2(index, 0)).r+imageLoad(A, ivec2(index, 0)).g;//+imageLoad(A, ivec2(index, 0)).b+imageLoad(A, ivec2(index, 0)).a;
+            // float b = imageLoad(B, ivec2(index, 0)).r+imageLoad(B, ivec2(index, 0)).g;//+imageLoad(B, ivec2(index, 0)).b+imageLoad(B, ivec2(index, 0)).a;
+            float a = imageLoad(A, ivec2(gl_GlobalInvocationID.xy)).r;
+            float b = imageLoad(B, ivec2(gl_GlobalInvocationID.xy)).r;
+            imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(binaryOperation(a, b), 100.0, 101.0, 102.0));
+            // imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(binaryOperation(a, b)+99.0, 100.0, 101.0, 102.0));
+            // imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(float(index)+10.0, 100.0, 101.0, 102.0));
           }
         `;
       this.shaderKey = `binary2${op}`;

@@ -50,7 +50,7 @@ import * as unary_op from './kernels/unary_op_webgpu';
 import {UnaryOpProgram} from './kernels/unary_op_webgpu';
 import * as webgpu_program from './kernels/webgpu_program';
 import {WebGPUBinary} from './kernels/webgpu_program';
-import {GetFormatSize, TextureManager} from './texture_manager';
+import {TextureManager} from './texture_manager';
 import * as webgpu_util from './webgpu_util';
 
 export interface WebGPUMemoryInfo extends backend_util.MemoryInfo {
@@ -65,7 +65,10 @@ type BufferInfo = {
   buffer?: GPUBuffer,
   texUsage?: GPUTextureUsageFlags,
   format?: GPUTextureFormat,
-  texture?: GPUTexture
+  texture?: GPUTexture,
+  // Below is texture specific.
+  width?: number,
+  height?: number
 };
 
 type TensorBufferInfo = {
@@ -186,11 +189,13 @@ export class WebGPUBackend extends KernelBackend {
     return this.bufferManager.acquireBuffer(byteSize, usage);
   }
 
+  /*
   private acquireTexture(
       byteSize: number, format: GPUTextureFormat = 'r32float',
       usage: GPUTextureUsageFlags = DEFAULT_GPUTEXTURE_USAGE) {
     return this.textureManager.acquireTexture(byteSize, format, usage);
   }
+  */
 
   private maybeReleaseBuffer(dataId: DataId) {
     const info = this.tensorMap.get(dataId);
@@ -201,10 +206,24 @@ export class WebGPUBackend extends KernelBackend {
       info.bufferInfo.buffer = null;
     }
     if (info != null && info.bufferInfo.texture != null) {
+      // TODO xx. Need to div by 4?
       this.textureManager.releaseTexture(
-          info.bufferInfo.texture, info.bufferInfo.byteSize,
+          info.bufferInfo.texture, info.bufferInfo.byteSize / 4, 1,
           info.bufferInfo.format, info.bufferInfo.texUsage);
       info.bufferInfo.texture = null;
+    }
+  }
+
+  getTextureWidthHeight(shape: number[]): [number, number] {
+    // TODO(texture): Support high dimension. Consider rgba32f.
+    if (shape.length == 2)
+      return [shape[0], shape[1]];
+    else if (shape.length == 1)
+      return [shape[0], 1];
+    else {
+      console.error(
+          ' shape length is ' + shape.length + ', only <=2 is support');
+      return [0, 0];
     }
   }
 
@@ -213,6 +232,7 @@ export class WebGPUBackend extends KernelBackend {
     const dataId = {};
     const byteSize =
         util.sizeFromShape(shape) * webgpu_util.GPUBytesPerElement(dtype);
+    const [width, height] = this.getTextureWidthHeight(shape);
 
     this.tensorMap.set(dataId, {
       dtype,
@@ -221,7 +241,10 @@ export class WebGPUBackend extends KernelBackend {
         byteSize,
         usage: DEFAULT_GPUBUFFER_USAGE,
         texUsage: DEFAULT_GPUTEXTURE_USAGE,
-        format: 'r32float'
+        format: 'r32float',
+        // TODO(texture): this only works when texture is used.
+        width: width,
+        height: height
       }
     });
     return dataId;
@@ -254,6 +277,7 @@ export class WebGPUBackend extends KernelBackend {
     return this.tensorMap.get(dataId).bufferInfo.buffer;
   }
 
+
   private async getBufferData(info: TensorBufferInfo):
       Promise<backend_util.BackendValues> {
     if (info.values != null) {
@@ -282,15 +306,31 @@ export class WebGPUBackend extends KernelBackend {
 
       return values as backend_util.BackendValues;
     } else {
-      const requiredSize = Math.ceil(info.bufferInfo.byteSize / 256) * 256;
+      const width = info.bufferInfo.width;
+      const height = info.bufferInfo.height;
+      const bytesPerRow = this.textureManager.getBytesPerRow(width);
       const staging = this.acquireBuffer(
-          info.bufferInfo.byteSize,
+          this.textureManager.getBufferSize(
+              width,
+              height),  // info.bufferInfo.byteSize,
           GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
+      console.log(
+          'xx read createBuffer size =' +
+          this.textureManager.getBufferSize(width, height));
       const encoder = this.device.createCommandEncoder({});
+      console.log(info.bufferInfo.texture);
       encoder.copyTextureToBuffer(
           {texture: info.bufferInfo.texture},
-          {buffer: staging, bytesPerRow: requiredSize},
-          {width: info.bufferInfo.byteSize / 4, height: 1, depth: 1});
+          {buffer: staging, bytesPerRow: bytesPerRow},
+          {width: width, height: height, depth: 1});
+      console.log(
+          'xx read copyTextureToBuffer wdith, height =' + width + ', ' +
+          height);
+      console.log(
+          'xx read copyTextureToBuffer: widthTex = ' + width +
+          '; heightTex = ' + height + ', bytesPerRow' + bytesPerRow +
+          ', this.getBufferSizeRead()=' +
+          this.textureManager.getBufferSize(width, height));
       this.commandQueue.push(encoder);
       this.submitQueue();
 
@@ -300,11 +340,14 @@ export class WebGPUBackend extends KernelBackend {
       staging.unmap();
       if (staging != null) {
         this.bufferManager.releaseBuffer(
-            staging, info.bufferInfo.byteSize,
+            staging, this.textureManager.getBufferSize(width, height),
             GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
       }
 
-      return values as backend_util.BackendValues;
+      const result = this.textureManager.removeTexturePadding(
+          new Float32Array(values), width, height);
+
+      return result as backend_util.BackendValues;
     }
   }
 
@@ -438,6 +481,46 @@ export class WebGPUBackend extends KernelBackend {
     return timerQuery.endMs - timerQuery.startMs;
   }
 
+  getBytesPerRow(width: number, kBytesPerTexel = 16) {
+    const kTextureBytesPerRowAlignment = 256;
+    const alignment = kTextureBytesPerRowAlignment;
+    // const kBytesPerTexel = 16;
+    const value = kBytesPerTexel * width;
+    // const bytesPerRow = (value + (alignment - 1)) & ~(alignment - 1);
+    const bytesPerRow =
+        ((value + (alignment - 1)) & ((~(alignment - 1)) >>> 0)) >>> 0;
+    return bytesPerRow;
+  }
+
+  getBytesPerTexel(format: GPUTextureFormat): number {
+    // kBytesPerTexel = 4;
+    if (format == 'rgba32float' || format == 'rgba32uint')
+      return 16;
+    else if (format == 'r32float' || format == 'r32uint')
+      return 4;
+    else {
+      console.error('Unsupported format ' + format);
+      return 4;
+    }
+  }
+
+  getPackedMatrixTextureShapeWidthHeight(
+      rows: number, columns: number,
+      format: GPUTextureFormat): [number, number] {
+    // kBytesPerTexel = 4;
+    if (format == 'rgba32float' || format == 'rgba32uint')
+      // return [Math.max(1, Math.ceil(rows)), Math.max(1, Math.ceil(columns /
+      // 4))];
+      return [
+        Math.max(1, Math.ceil(rows / 4)), Math.max(1, Math.ceil(columns))
+      ];
+    else if (format == 'rgba8uint')
+      return [rows, columns];
+    else
+      return [rows, columns];
+  }
+
+
   private uploadToGPU(
       dataId: DataId, useTexture = false, format: GPUTextureFormat = 'r32float',
       usage: GPUTextureUsageFlags = DEFAULT_GPUTEXTURE_USAGE): void {
@@ -448,20 +531,40 @@ export class WebGPUBackend extends KernelBackend {
         // Already on the GPU.
         return;
       }
+      // this.textureManager.acquireAndWriteTexture();
 
-      info.bufferInfo.texture =
-          this.acquireTexture(info.bufferInfo.byteSize, format, usage);
+      // info.bufferInfo.texture =
+      // this.acquireTexture(info.bufferInfo.byteSize, format, usage);
+      info.bufferInfo.texture = this.textureManager.acquireTexture(
+          info.bufferInfo.width, info.bufferInfo.height, format, usage);
+      // info.bufferInfo.width = info.bufferInfo.byteSize / 4;
+      // info.bufferInfo.height = 1;
 
       if (info.values) {
-        const requiredSize = Math.ceil(info.bufferInfo.byteSize / 256) * 256;
-        const formatSize = GetFormatSize(format);
-        const texWidth = info.bufferInfo.byteSize / formatSize;
+        // const requiredSize = Math.ceil(info.bufferInfo.byteSize / 256) * 256;
+
+        // TODO(xx): Change 1 to heightTex.
+        /*
+        const [widthTex, heightTex] =
+            this.getPackedMatrixTextureShapeWidthHeight(
+                info.bufferInfo.byteSize, 1, format);
+        // const formatSize = this.getBytesPerTexel(format);
+        const bytesPerRow =
+            this.getBytesPerRow(widthTex, this.getBytesPerTexel(format));
+        // const texWidth = info.bufferInfo.byteSize / this.getBytesPerRow();
         this.queue.writeTexture(
             {texture: info.bufferInfo.texture}, info.values as ArrayBuffer,
-            {bytesPerRow: requiredSize, rowsPerImage: 1},
-            {width: texWidth, height: 1, depth: 1});
+            {bytesPerRow: bytesPerRow, rowsPerImage: 1},
+            {width: widthTex,height height: heightTex, depth: 1});
+        */
+        console.log('Upload: ' + info.values);
+        this.textureManager.writeTextureWithCopy(
+            this.device, info.bufferInfo.texture, info.values,
+            info.bufferInfo.width, info.bufferInfo.height);
+        console.log('Upload: ' + info.bufferInfo.texture);
         info.values = null;
       }
+
       return;
     }
 
@@ -546,6 +649,7 @@ export class WebGPUBackend extends KernelBackend {
     pass.setBindGroup(0, bg);
     pass.dispatch(
         program.dispatch[0], program.dispatch[1], program.dispatch[2]);
+    console.log(' dispatch = ' + program.dispatch);
     pass.endPass();
     this.commandQueue.push(encoder);
 
