@@ -39,17 +39,12 @@ export class TextureManager {
 
   public numBytesUsed = 0;
   public numBytesAllocated = 0;
-  // private key = 0;
-
   constructor(private device: GPUDevice) {}
 
   getPackedMatrixTextureShapeWidthHeight(
       rows: number, columns: number,
       format: GPUTextureFormat): [number, number] {
-    // kBytesPerTexel = 4;
     if (format == 'rgba32float' || format == 'rgba32uint')
-      // return [Math.max(1, Math.ceil(rows)), Math.max(1, Math.ceil(columns /
-      // 4))];
       return [
         Math.max(1, Math.ceil(rows / 4)), Math.max(1, Math.ceil(columns))
       ];
@@ -59,7 +54,6 @@ export class TextureManager {
       return [rows, columns];
   }
 
-  //
   private addTexturePadding(
       textureData: Float32Array|Uint32Array,
       width: number,
@@ -68,23 +62,16 @@ export class TextureManager {
   ) {
     let textureDataWithPadding =
         new Float32Array(bytesPerRow / this.kBytesPerTexel * height);
-    console.log(textureData);
-    console.log('width =' + width + ', height =' + height);
 
     for (let y = 0; y < height; ++y) {
       for (let x = 0; x < width; ++x) {
         const dst = x + y * bytesPerRow / this.kBytesPerTexel;
         const src = x + y * width;
         textureDataWithPadding[dst] = textureData[src];
-        // console.log('x =' + x + ', y =' + y);
-        // console.log(   ' src = ' + src + ',' + textureData[src] + '; dst = '
-        // + dst + ',' +      textureDataWithPadding[dst]);
       }
     }
-    console.log(textureDataWithPadding);
     return textureDataWithPadding;
   }
-  //
 
   // This will remove padding for data downloading from GPU texture.
   public removeTexturePadding(
@@ -112,42 +99,11 @@ export class TextureManager {
   }
 
   public getBufferSize(width: number, height: number) {
-    /*
-    const blockHeight = 1;
-    const blockWidth = 1;
-
-    const [widthTex, heightTex] =
-        tex_util.getPackedMatrixTextureShapeWidthHeight(
-            this.shape[0], this.shape[1], this.format);
-
-    const bytesPerRow = tex_util.getBytesPerRow(widthTex, this.kBytesPerTexel);
-
-    const sliceSize = bytesPerRow * (heightTex / blockHeight - 1) +
-        (widthTex / blockWidth) * this.kBytesPerTexel;
-    */
-    /*
-    this.shape = 4096, 128, this.kBytesPerTexel=16
-    texture.ts:56  bytesPerRow = 16384, heightTex =128
-    texture.ts:125  this.getBufferSize() =2097152
-
-    */
-
     const [widthTex, heightTex] =
         this.getPackedMatrixTextureShapeWidthHeight(width, height, this.format);
-    /*
-    console.log(
-        ' this.shape = ' + this.shape[0] + ', ' + this.shape[1] +
-        ', this.kBytesPerTexel=' + this.kBytesPerTexel);
-    */
 
     const bytesPerRow = this.getBytesPerRow(widthTex);
-    /*
-    console.log(
-        ' bytesPerRow = ' + bytesPerRow + ' widthTex, heightTex =' + widthTex +
-        ', ' + heightTex);
-    */
-    const sliceSize = bytesPerRow * heightTex;
-    return sliceSize;
+    return bytesPerRow * heightTex;
   }
 
   public writeTexture(
@@ -156,26 +112,7 @@ export class TextureManager {
     const [widthTex, heightTex] =
         this.getPackedMatrixTextureShapeWidthHeight(width, height, this.format);
 
-    /*
-    const texture = this.device.createTexture({
-      size: {width: widthTex, height: heightTex, depth: 1},
-      format: this.format,
-      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC |
-          GPUTextureUsage.STORAGE
-    });
-    */
-
     const bytesPerRow = this.getBytesPerRow(widthTex);
-    console.log(
-        'xx writeTexture width tex,  heightTex =' + widthTex + ', ' +
-        heightTex + ',   start ' + this.format +
-        ', bytesPerRow=' + bytesPerRow);
-    /*
-            this.queue.writeTexture(
-            {texture: info.bufferInfo.texture}, info.values as ArrayBuffer,
-            {bytesPerRow: bytesPerRow, rowsPerImage: 1},
-            {width: widthTex, height: heightTex, depth: 1});
-    */
 
     /* Alignment is not required for writeTexture.
     const dataWithPadding = this.addTexturePadding(
@@ -205,14 +142,7 @@ export class TextureManager {
         this.getPackedMatrixTextureShapeWidthHeight(width, height, this.format);
 
     const bytesPerRow = this.getBytesPerRow(widthTex);
-    console.log(
-        'xx writeTextureWithCopy: widthTex = ' + widthTex +
-        '; heightTex = ' + heightTex + ', bytesPerRow=' + bytesPerRow);
 
-    console.log(
-        'xx writeTextureWithCopy:  this.getBufferSize() =' +
-        this.getBufferSize(width, height));
-    // TODO: turn this into type of secondMatrix.
     const matrixDataWithAlignment = this.addTexturePadding(
         matrixData as Float32Array, width, height, bytesPerRow);
 
@@ -220,8 +150,7 @@ export class TextureManager {
     src.unmap();
 
     const encoder = this.device.createCommandEncoder();
-    // TODO: fix the width height.
-    // copyBufferToTexture(source, destination, copySize).
+
     encoder.copyBufferToTexture(
         {buffer: src, bytesPerRow: bytesPerRow},
         {texture: texture, mipLevel: 0, origin: {x: 0, y: 0, z: 0}},
@@ -255,8 +184,6 @@ export class TextureManager {
     }
     const [widthTex, heightTex] =
         this.getPackedMatrixTextureShapeWidthHeight(width, height, texFormat);
-    console.log(
-        'xx createTexture widthTex, heightTex =' + widthTex + ', ' + heightTex);
 
     this.numBytesAllocated += width * height * this.kBytesPerTexel;
     const newTexture = this.device.createTexture({
@@ -277,7 +204,6 @@ export class TextureManager {
       return;
     }
 
-    // TODO: this is buggy.
     const key =
         getTextureKey(width * height * this.kBytesPerTexel, texFormat, usage);
     if (!this.freeTextures.has(key)) {
@@ -303,16 +229,13 @@ export class TextureManager {
   getBytesPerRow(width: number) {
     const kTextureBytesPerRowAlignment = 256;
     const alignment = kTextureBytesPerRowAlignment;
-    // const kBytesPerTexel = 16;
     const value = this.kBytesPerTexel * width;
-    // const bytesPerRow = (value + (alignment - 1)) & ~(alignment - 1);
     const bytesPerRow =
         ((value + (alignment - 1)) & ((~(alignment - 1)) >>> 0)) >>> 0;
     return bytesPerRow;
   }
 
   getBytesPerTexel(format: GPUTextureFormat): number {
-    // kBytesPerTexel = 4;
     if (format == 'rgba32float' || format == 'rgba32uint')
       return 16;
     else if (format == 'r32float' || format == 'r32uint')
