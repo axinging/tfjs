@@ -215,16 +215,7 @@ export class WebGPUBackend extends KernelBackend {
   }
 
   getTextureWidthHeight(shape: number[]): [number, number] {
-    // TODO(texture): Support high dimension. Consider rgba32f.
-    if (shape.length == 2)
-      return [shape[0], shape[1]];
-    else if (shape.length == 1)
-      return [shape[0], 1];
-    else {
-      console.error(
-          ' shape length is ' + shape.length + ', only <=2 is support');
-      return [0, 0];
-    }
+    return webgpu_util.getTextureShapeFromLogicalShape(shape, false);
   }
 
   write(values: backend_util.BackendValues, shape: number[], dtype: DataType):
@@ -233,6 +224,8 @@ export class WebGPUBackend extends KernelBackend {
     const byteSize =
         util.sizeFromShape(shape) * webgpu_util.GPUBytesPerElement(dtype);
     const [width, height] = this.getTextureWidthHeight(shape);
+    console.log(
+        ' shape =' + shape + ', width = ' + width + ', height=' + height);
 
     this.tensorMap.set(dataId, {
       dtype,

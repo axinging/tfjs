@@ -14,7 +14,7 @@
  * limitations under the License.
  * =============================================================================
  */
-import {DataType} from '@tensorflow/tfjs-core';
+import {DataType, env, util} from '@tensorflow/tfjs-core';
 
 const arrayProduct = (arr: number[]) => {
   let product = 1;
@@ -135,5 +135,103 @@ export function ArrayBufferToTypedArray(data: ArrayBuffer, dtype: DataType) {
     return dataAsTypedArray;
   } else {
     throw new Error(`Unknown dtype ${dtype}`);
+  }
+}
+
+export function getBatchDim(shape: number[], dimsToSkip = 2): number {
+  return util.sizeFromShape(shape.slice(0, shape.length - dimsToSkip));
+}
+
+export function getRowsCols(shape: number[]): [number, number] {
+  if (shape.length === 0) {
+    throw Error('Cannot get rows and columns of an empty shape array.');
+  }
+
+  return [
+    shape.length > 1 ? shape[shape.length - 2] : 1, shape[shape.length - 1]
+  ];
+}
+
+export function getShapeAs3D(shape: number[]): [number, number, number] {
+  let shapeAs3D: [number, number, number] = [1, 1, 1];
+  const isScalar = shape.length === 0 || (shape.length === 1 && shape[0] === 1);
+  if (!isScalar) {
+    shapeAs3D =
+        [getBatchDim(shape), ...getRowsCols(shape)] as [number, number, number];
+  }
+  return shapeAs3D;
+}
+
+
+export function getTextureShapeFromLogicalShape(
+    logShape: number[], isPacked = false): [number, number] {
+  let maxTexSize = env().getNumber('WEBGL_MAX_TEXTURE_SIZE');
+  if (isPacked) {
+    maxTexSize = maxTexSize * 2;
+
+    // This logic ensures we accurately count the number of packed texels needed
+    // to accommodate the tensor. We can only pack values in the same texel if
+    // they are from adjacent pairs of rows/cols within the same batch. So if a
+    // tensor has 3 rows, we pretend it has 4 rows in order to account for the
+    // fact that the texels containing the third row are half empty.
+    logShape = logShape.map(
+        (d, i) => i >= logShape.length - 2 ?
+            util.nearestLargerEven(logShape[i]) :
+            logShape[i]);
+
+    // Packed texture height is at least 2 (the channel height of a single
+    // texel).
+    if (logShape.length === 1) {
+      logShape = [2, logShape[0]];
+    }
+  }
+
+  // If logical shape is 2, we don't squeeze, since we want to match physical.
+  if (logShape.length !== 2) {
+    const squeezeResult = util.squeezeShape(logShape);
+    logShape = squeezeResult.newShape;
+  }
+
+  let size = util.sizeFromShape(logShape);
+  if (logShape.length <= 1 && size <= maxTexSize) {
+    return [1, size];
+  } else if (
+      logShape.length === 2 && logShape[0] <= maxTexSize &&
+      logShape[1] <= maxTexSize) {
+    return logShape as [number, number];
+  } else if (
+      logShape.length === 3 && logShape[0] * logShape[1] <= maxTexSize &&
+      logShape[2] <= maxTexSize) {
+    return [logShape[0] * logShape[1], logShape[2]];
+  } else if (
+      logShape.length === 3 && logShape[0] <= maxTexSize &&
+      logShape[1] * logShape[2] <= maxTexSize) {
+    return [logShape[0], logShape[1] * logShape[2]];
+  } else if (
+      logShape.length === 4 &&
+      logShape[0] * logShape[1] * logShape[2] <= maxTexSize &&
+      logShape[3] <= maxTexSize) {
+    return [logShape[0] * logShape[1] * logShape[2], logShape[3]];
+  } else if (
+      logShape.length === 4 && logShape[0] <= maxTexSize &&
+      logShape[1] * logShape[2] * logShape[3] <= maxTexSize) {
+    return [logShape[0], logShape[1] * logShape[2] * logShape[3]];
+  } else {
+    if (isPacked) {
+      // For packed textures size equals the number of channels required to
+      // accommodate the texture data. However in order to squarify such that
+      // inner dimensions stay even, we rewrite size to equal the number of
+      // texels. Then in the return statement we rehydrate the squarified
+      // dimensions to channel units.
+
+      const batchDim = getBatchDim(logShape);
+      let rows = 2, cols = 2;
+      if (logShape.length) {
+        [rows, cols] = getRowsCols(logShape);
+      }
+      size = batchDim * (rows / 2) * (cols / 2);
+      return util.sizeToSquarishShape(size).map(d => d * 2) as [number, number];
+    }
+    return util.sizeToSquarishShape(size);
   }
 }

@@ -19,7 +19,7 @@ import {backend_util, util} from '@tensorflow/tfjs-core';
 import {getCoordsDataType} from '../shader_preprocessor';
 
 // computeDispatch
-import {computeDispatch} from '../webgpu_util';
+import {computeDispatch, getTextureShapeFromLogicalShape} from '../webgpu_util';
 
 import {WebGPUProgram} from './webgpu_program';
 
@@ -32,17 +32,18 @@ export class BinaryOpProgram implements WebGPUProgram {
   dispatch: [number, number, number];
   // TODO:
   variableNames: string[] = [];
-
   variableTextureNames = ['A', 'B'];
   workPerThread: number;
   workGroupSize: [number, number, number];
-  y: [1];
 
   constructor(op: string, aShape: number[], bShape: number[]) {
     // TODO(jiajia.qin@intel.com): Heuristically select a good work group size.
-    const workGroupSizeX = 1;
+    const workGroupSizeX = 128;
     this.workGroupSize = [workGroupSizeX, 1, 1];
+    // const outputShapeLogical = backend_util.assertAndGetBroadcastShape(aShape, bShape);
+    // this.outputShape = getTextureShapeFromLogicalShape(outputShapeLogical);
     this.outputShape = backend_util.assertAndGetBroadcastShape(aShape, bShape);
+    const outputShapeLogical = getTextureShapeFromLogicalShape(this.outputShape);
     this.dispatchLayout = {
       x: [0],
       y: [1]
@@ -53,7 +54,7 @@ export class BinaryOpProgram implements WebGPUProgram {
     this.workPerThread = 1;  // shapesFit || sizeFit ? 1 : 2;
 
     this.dispatch = computeDispatch(
-        this.dispatchLayout, this.outputShape, this.workGroupSize,
+        this.dispatchLayout, outputShapeLogical, this.workGroupSize,
         [this.workPerThread, 1, 1]);
     // this.dispatch = [10, 3, 1];
 
@@ -117,8 +118,8 @@ export class BinaryOpProgram implements WebGPUProgram {
 
             //float a = getAAtOutCoords(coords);
             //float b = getBAtOutCoords(coords);
-            float a = imageLoad(A, ivec2(index, 0)).r;
-            float b = imageLoad(B, ivec2(index, 0)).r;
+            float a = imageLoad(A, ivec2(gl_GlobalInvocationID.xy)).r;//imageLoad(A, ivec2(index, 0)).r;
+            float b = imageLoad(B, ivec2(gl_GlobalInvocationID.xy)).r;
             imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(binaryOperation(a, b), 0.0, 0.0, 0.0));
             //setOutput(flatIndex, binaryOperation(a, b));
           }
