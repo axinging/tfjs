@@ -125,7 +125,9 @@ export class MatMulPackedProgram implements WebGPUProgram {
   dispatchLayout: {x: number[], y: number[], z: number[]};
   dispatch: [number, number, number];
   workPerThread: number;
-  variableNames = ['A', 'B'];
+  // TODO(texture).
+  variableNames: string[] = [];
+  variableTextureNames = ['A', 'B'];
   workGroupSize: [number, number, number] = [16, 16, 1];
 
   constructor(
@@ -138,7 +140,7 @@ export class MatMulPackedProgram implements WebGPUProgram {
     this.outputShape = outputShape;
     this.dispatchLayout = {x: [2], y: [1], z: [0]};
     this.dispatch = computeDispatch(
-        this.dispatchLayout, this.outputShape, this.workGroupSize,
+        this.dispatchLayout, outputShape, this.workGroupSize,
         [workPerThread, workPerThread, 1]);
     // If dispaching number is one, it means only one work group is running.
     // For modern GPUs, it supports multiple work groups running in parallel.
@@ -166,28 +168,28 @@ export class MatMulPackedProgram implements WebGPUProgram {
     let sampleA;
     if (transposeA === false) {
       sampleA = fitA ?
-          `A[row * dimInner + col]` :
+          `imageLoad(A, ivec2(col,row)).r` :
           `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
-            A[row * dimInner + col] : 0`;
+            imageLoad(A, ivec2(col,row)).r : 0`;
     } else {
       sampleA = fitA ?
-          `A[col * dimAOuter + row]` :
+          `imageLoad(A, ivec2(row, col)).r` :
           `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
-            A[col * dimAOuter + row] : 0`;
+          imageLoad(A, ivec2(row, col)).r : 0`;
     }
 
     const fitB = tilesFitEvenlyIntoShape(tileSizeB, bShape.slice(1));
     let sampleB;
     if (transposeB === false) {
       sampleB = fitB ?
-          `B[row * dimBOuter + col]` :
+          `imageLoad(B, ivec2(col,row)).r` :
           `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
-            B[row * dimBOuter + col] : 0`;
+          imageLoad(B, ivec2(col,row)).r : 0`;
     } else {
       sampleB = fitB ?
-          `B[col * dimInner + row]` :
+          `imageLoad(B, ivec2(row, col)).r` :
           `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
-            B[col * dimInner + row] : 0`;
+          imageLoad(B, ivec2(row, col)).r : 0`;
     }
 
     this.userCode = `
@@ -205,9 +207,14 @@ export class MatMulPackedProgram implements WebGPUProgram {
       float mm_readB(int row, int col) {
         return ${sampleB};
       }
-
+      /*
       void mm_write(int row, int col, float value) {
         setOutput(row * dimBOuter + col, value);
+      }
+      */
+      void mm_write(int row, int col, float value) {
+        // TODO: Figure out why need vec4 here.
+        imageStore(result, ivec2(col, row), vec4(value, 0.0, 0.0, 0.0));
       }
 
       void main() {

@@ -223,7 +223,8 @@ export class WebGPUBackend extends KernelBackend {
     const dataId = {};
     const byteSize =
         util.sizeFromShape(shape) * webgpu_util.GPUBytesPerElement(dtype);
-    const [width, height] = this.getTextureWidthHeight(shape);
+    // Reverse:
+    const [height, width] = this.getTextureWidthHeight(shape);
     console.log(
         ' shape =' + shape + ', width = ' + width + ', height=' + height);
 
@@ -307,23 +308,11 @@ export class WebGPUBackend extends KernelBackend {
               width,
               height),  // info.bufferInfo.byteSize,
           GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
-      console.log(
-          'xx read createBuffer size =' +
-          this.textureManager.getBufferSize(width, height));
       const encoder = this.device.createCommandEncoder({});
-      console.log(info.bufferInfo.texture);
       encoder.copyTextureToBuffer(
           {texture: info.bufferInfo.texture},
           {buffer: staging, bytesPerRow: bytesPerRow},
           {width: width, height: height, depth: 1});
-      console.log(
-          'xx read copyTextureToBuffer wdith, height =' + width + ', ' +
-          height);
-      console.log(
-          'xx read copyTextureToBuffer: widthTex = ' + width +
-          '; heightTex = ' + height + ', bytesPerRow' + bytesPerRow +
-          ', this.getBufferSizeRead()=' +
-          this.textureManager.getBufferSize(width, height));
       this.commandQueue.push(encoder);
       this.submitQueue();
 
@@ -336,6 +325,7 @@ export class WebGPUBackend extends KernelBackend {
             staging, this.textureManager.getBufferSize(width, height),
             GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
       }
+      console.log('Read back values=' + new Float32Array(values));
 
       const result = this.textureManager.removeTexturePadding(
           new Float32Array(values), width, height);
@@ -510,7 +500,7 @@ export class WebGPUBackend extends KernelBackend {
     else if (format == 'rgba8uint')
       return [rows, columns];
     else
-      return [rows, columns];
+      return [columns, rows];
   }
 
 
@@ -551,10 +541,15 @@ export class WebGPUBackend extends KernelBackend {
             {width: widthTex,height height: heightTex, depth: 1});
         */
         console.log('Upload: ' + info.values);
+
         this.textureManager.writeTextureWithCopy(
             this.device, info.bufferInfo.texture, info.values,
             info.bufferInfo.width, info.bufferInfo.height);
-        console.log('Upload: ' + info.bufferInfo.texture);
+        /*
+                this.textureManager.writeTexture(
+                    this.queue, info.bufferInfo.texture, info.values,
+                    info.bufferInfo.width, info.bufferInfo.height);
+                  */
         info.values = null;
       }
 
