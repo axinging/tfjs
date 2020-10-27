@@ -208,7 +208,8 @@ if (texNumC === stride2 && flatOffset == null) {
           */
           //return imageLoad(W, ivec2(row,col)).r;
           // TODO(texture): use getW instead.
-          ivec2 uv = ivec2(row/18, row%18);
+          // ivec2 uv = ivec2(row/18, row%18);
+          ivec2 uv = ivec2(col, row%18);
           return imageLoad(W, ivec2(uv.x,uv.y)).r;
         }
 
