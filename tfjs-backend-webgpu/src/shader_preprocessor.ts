@@ -69,10 +69,19 @@ interface ProgramParams {
   userCode: string;
 }
 
+export type ShapeInfo = {
+  logicalShape: number[],
+  texShape: [number, number],
+  isUniform: boolean,
+  isPacked: boolean,
+  flatOffset: number
+};
+
 export interface InputInfo {
   dtype: DataType;
   shape: number[];
   name: string;
+  shapeInfo: ShapeInfo;
   useTexture: boolean;
 }
 
@@ -179,8 +188,14 @@ const SHADER_PREFIX = `#version 450
   }
 
   bool coordsInBounds(ivec2 coord, ivec2 shape) {
-    return all(greaterThanEqual(coord, ivec2(0))) &&
+    return all(greaterThanEqual(coord, ivec2(0))) && 
         all(lessThan(coord, shape));
+  }
+
+  ivec2 uvFromFlat(int texNumR, int texNumC, int index) {
+    int texR = index / texNumC;
+    int texC = index - texR * texNumC;
+    return ivec2(texC, texR);
   }
 `;
 
@@ -222,8 +237,9 @@ function getSetOutputSnippet(
     }
     void setOutput(int flatIndex, int value) {
       result[flatIndex] = ${
-        glslType === 'float' ? 'float(value)' :
-                               (glslType === 'bool' ? 'bool(value)' : 'value')};
+        glslType === 'float' ?
+            'float(value)' :
+            (glslType === 'bool' ? 'bool(value)' : 'value')};
     }`;
   }
 
@@ -251,7 +267,9 @@ function getSetOutputSnippet(
 
 function getInputSamplingSnippet(
     inInfo: InputInfo, outShape: number[]): string {
-  let res = getSamplerFromInInfo(inInfo);
+  let res = getSamplerFromInInfo2(inInfo);
+  // TODO(texture): this is for mm_read
+  // res += getSamplerFromInInfo2(inInfo);
 
   const inShape = inInfo.shape;
   if (inShape.length <= outShape.length) {
@@ -478,4 +496,191 @@ function generateGetCoordsFromFlatIndex(shape: number[]): string {
       return ${dtype}(${coords.join(',')});
     }
   `;
+}
+
+export function getSamplerFromInInfo2(inInfo: InputInfo): string {
+  const shape = inInfo.shapeInfo.logicalShape;
+  switch (shape.length) {
+    /*
+    case 0:
+      return getSamplerScalar(inInfo);
+    case 1:
+      return getSampler1D(inInfo);
+    */
+    case 2:
+      return getSampler2D(inInfo);
+    case 3:
+      return getSampler3D(inInfo);
+    case 4:
+      return getSampler4D(inInfo);
+    /*
+    case 5:
+      return getSampler5D(inInfo);
+    case 6:
+      return getSampler6D(inInfo);
+    */
+    default:
+      throw new Error(
+          `${shape.length}-D input sampling` +
+          ` is not yet supported`);
+  }
+}
+
+export function getSampler2D(inputInfo: InputInfo): string {
+  const shape = inputInfo.shapeInfo.logicalShape;
+  const texName = inputInfo.name;
+  const funcName = 'get' + texName.charAt(0).toUpperCase() + texName.slice(1);
+  const texShape = inputInfo.shapeInfo.texShape;
+
+  if (texShape != null && util.arraysEqual(shape, texShape)) {
+    return `
+      float ${funcName}(int row, int col) {
+        return imageLoad(${texName}, ivec2(row,col)).r; 
+      }
+    `;
+  }
+
+  const {newShape, keptDims} = util.squeezeShape(shape);
+  const squeezedShape = newShape;
+  // TODO(texture): this requires get1D.
+  if (squeezedShape.length < shape.length) {
+    const newInputInfo = squeezeInputInfo(inputInfo, squeezedShape);
+    const params = ['row', 'col'];
+    return `
+      ${getSamplerFromInInfo(newInputInfo)}
+      float ${funcName}(int row, int col) {
+        return ${funcName}(${getSqueezedParams(params, keptDims)});
+      }
+    `;
+  }
+
+  return `
+    float ${funcName}(int row, int col) {
+      imageLoad(W, ivec2(row,col)).r; 
+    }
+  `;
+}
+
+export function getSampler3D(inputInfo: InputInfo): string {
+  const shape = inputInfo.shapeInfo.logicalShape;
+  const texName = inputInfo.name;
+  const funcName = 'get' + texName.charAt(0).toUpperCase() + texName.slice(1);
+  const stride0 = shape[1] * shape[2];
+  const stride1 = shape[2];
+  console.log('3D texName ' + texName + ', ' + shape);
+
+  const {newShape, keptDims} = util.squeezeShape(shape);
+  const squeezedShape = newShape;
+  if (squeezedShape.length < shape.length) {
+    const newInputInfo = squeezeInputInfo(inputInfo, squeezedShape);
+    const params = ['row', 'col', 'depth'];
+    return `
+            ${getSamplerFromInInfo2(newInputInfo)}
+            float ${funcName}(int row, int col, int depth) {
+              return ${funcName}(${getSqueezedParams(params, keptDims)});
+            }
+          `;
+  }
+
+  const texShape = inputInfo.shapeInfo.texShape;
+  const texNumR = texShape[0];
+  const texNumC = texShape[1];
+
+  console.log(' texNumR = ' + texNumR);
+  console.log(' stride0 = ' + stride0);
+  console.log(' texNumC = ' + texNumC);
+  console.log(' stride1 = ' + stride1);
+  if (texNumC === stride0)
+    // texC is used directly as physical (no risk of float16 overflow).
+    return `
+        float ${funcName}(int row, int col, int depth) {
+          int texR = float(row);
+          int texC = dot(vec2(col, depth), vec2(${stride1}, 1));
+          return imageLoad(${texName}, ivec2(texR,texC)).r;
+        }
+      `;
+
+  // case [logShape[0] * logShape[1], logShape[2]];
+  if (texNumC === stride1) {
+    // texR is used directly as physical (no risk of float16 overflow).
+    return `
+    float ${funcName}(int row, int col, int depth) {
+      int texR = int(dot(vec2(row, col), vec2(${shape[1]}, 1)));
+      int texC = int(depth);
+      // int texC = col%2;
+      return imageLoad(${texName}, ivec2(texC,texR)).r;
+    }
+  `;
+  }
+
+  return `
+    float ${funcName}(int row, int col, int depth) {
+      // Explicitly use integer operations as dot() only works on floats.
+      int index = row * ${stride0} + col * ${stride1} + depth;
+      ivec2 uv = uvFromFlat(${texNumR}, ${texNumC}, index);
+      return imageLoad(${texName}, ivec2(uv.y,uv.x)).r;
+    } `;
+}
+
+export function getSampler4D(inputInfo: InputInfo): string {
+  const shape = inputInfo.shapeInfo.logicalShape;
+  const texName = inputInfo.name;
+  const funcName = 'get' + texName.charAt(0).toUpperCase() + texName.slice(1);
+  const stride2 = shape[3];
+  const stride1 = shape[2] * stride2;
+  const stride0 = shape[1] * stride1;
+
+  const {newShape, keptDims} = util.squeezeShape(shape);
+
+  if (newShape.length < shape.length) {
+    const newInputInfo = squeezeInputInfo(inputInfo, newShape);
+    const params = ['row', 'col', 'depth', 'depth2'];
+    return `
+      ${
+        getSamplerFromInInfo2(
+            newInputInfo)} // this may call into getSampler2D or getSampler3D;
+      float ${funcName}(int row, int col, int depth, int depth2) {
+        return ${funcName}(${getSqueezedParams(params, keptDims)});
+      }
+    `;
+  }
+
+  const texShape = inputInfo.shapeInfo.texShape;
+  const texNumR = texShape[0];
+  const texNumC = texShape[1];
+
+  if (texNumC === stride2)
+    // texR is used directly as physical (no risk of float16 overflow).
+    return `
+      float ${funcName}(int row, int col, int depth, int depth2) {
+        int texR = int(dot(vec3(row, col, depth),
+                         vec3(${shape[1] * shape[2]}, ${shape[2]}, 1)));
+        int texC = int(depth2);
+        return imageLoad(${texName}, ivec2(texR,texC)).r;
+      }
+    `;
+
+  return `
+    float ${funcName}(int row, int col, int depth, int depth2) {
+      // Explicitly use integer operations as dot() only works on floats.
+      int index = row * ${stride0} + col * ${stride1} +
+          depth * ${stride2} + depth2;
+      vec2 uv = uvFromFlat(${texNumR}, ${texNumC}, index);
+      return imageLoad(${texName}, ivec2(uv.y,uv.x)).r;
+    }
+  `;
+}
+
+/** Returns a new input info (a copy) that has a squeezed logical shape. */
+export function squeezeInputInfo(
+    inInfo: InputInfo, squeezedShape: number[]): InputInfo {
+  // Deep copy.
+  const newInputInfo: InputInfo = JSON.parse(JSON.stringify(inInfo));
+  newInputInfo.shapeInfo.logicalShape = squeezedShape;
+  return newInputInfo;
+}
+
+export function getSqueezedParams(
+    params: string[], keptDims: number[]): string {
+  return keptDims.map(d => params[d]).join(', ');
 }

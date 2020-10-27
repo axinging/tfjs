@@ -50,6 +50,7 @@ import * as unary_op from './kernels/unary_op_webgpu';
 import {UnaryOpProgram} from './kernels/unary_op_webgpu';
 import * as webgpu_program from './kernels/webgpu_program';
 import {WebGPUBinary} from './kernels/webgpu_program';
+import {ShapeInfo} from './shader_preprocessor';
 import {TextureManager} from './texture_manager';
 import * as webgpu_util from './webgpu_util';
 
@@ -313,6 +314,10 @@ export class WebGPUBackend extends KernelBackend {
           {texture: info.bufferInfo.texture},
           {buffer: staging, bytesPerRow: bytesPerRow},
           {width: width, height: height, depth: 1});
+      console.log(
+          'xx read copyTextureToBuffer: width = ' + width + '; height = ' +
+          height + ', bytesPerRow' + bytesPerRow + ', this.getBufferSize()=' +
+          this.textureManager.getBufferSize(width, height));
       this.commandQueue.push(encoder);
       this.submitQueue();
 
@@ -518,6 +523,9 @@ export class WebGPUBackend extends KernelBackend {
 
       // info.bufferInfo.texture =
       // this.acquireTexture(info.bufferInfo.byteSize, format, usage);
+      console.log(
+          'Upload wxh=' + info.bufferInfo.width + ', ' +
+          info.bufferInfo.height);
       info.bufferInfo.texture = this.textureManager.acquireTexture(
           info.bufferInfo.width, info.bufferInfo.height, format, usage);
       // info.bufferInfo.width = info.bufferInfo.byteSize / 4;
@@ -594,6 +602,14 @@ export class WebGPUBackend extends KernelBackend {
       } else {
         this.uploadToGPU(input.dataId, true);
       }
+      const [height, width] = this.getTextureWidthHeight(input.shape);
+      const shapeInfo: ShapeInfo = {
+        logicalShape: input.shape,
+        texShape: [width, height],
+        isUniform: false,
+        isPacked: false,  // output.texData.isPacked,
+        flatOffset: null
+      };
 
       return {
         // Returning dtype from tensorMap because it reflects dtype
@@ -603,6 +619,7 @@ export class WebGPUBackend extends KernelBackend {
         name: useBuffer ?
             program.variableNames[i] :
             program.variableTextureNames[i - program.variableNames.length],
+        shapeInfo: shapeInfo,
         useTexture: !useBuffer
       };
     });
@@ -887,7 +904,9 @@ export class WebGPUBackend extends KernelBackend {
       // TODO(kainino0x): This may be obsolete, but is kept for reference.
       program = new Conv2DNaiveProgram(convInfo);
     } else {
+      console.log("workPerThread "+ workPerThread);
       program = new Conv2DMMProgram(convInfo, workPerThread);
+      // program = new Conv2DNaiveProgram(convInfo);
     }
 
     const pad = [convInfo.padInfo.top, convInfo.padInfo.left];

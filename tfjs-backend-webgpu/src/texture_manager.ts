@@ -52,6 +52,7 @@ export class TextureManager {
       return [rows, columns];
     else
       return [rows, columns];
+    // return [rows, columns];
   }
 
   private addTexturePadding(
@@ -84,6 +85,9 @@ export class TextureManager {
         'in remove: widthTex =' + widthTex + ',heightTex = ' + heightTex);
 
     let textureData = new Float32Array(width * height);
+    console.log(
+        'in remove: WxH=' + width + ',' + height +
+        '; width * height=' + width * height);
     console.log(
         'in removeTexturePadding textureDataWithPadding=' +
         (textureDataWithPadding as Float32Array));

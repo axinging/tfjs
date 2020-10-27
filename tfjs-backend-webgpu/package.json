@@ -21,7 +21,7 @@
     "link-local": "yalc link",
     "unlink-local": "yalc remove",
     "lint": "tslint -p . -t verbose",
-    "test": "yarn && yarn build-deps && karma start --browsers=chrome_webgpu --excludeTest='src/benchmark_ops_test.ts'",
+    "test": "karma start --browsers=chrome_webgpu --excludeTest='src/benchmark_ops_test.ts'",
     "test-ci": "./scripts/test-ci.sh",
     "benchmark": "karma start --grep=benchmark --browsers=chrome_webgpu"
   },

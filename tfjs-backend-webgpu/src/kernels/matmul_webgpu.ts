@@ -63,6 +63,7 @@ export function makeMatMulSource(): string {
 
         if (globalCol < dimBOuter && globalRow < dimAOuter) {
           mm_write(globalRow, globalCol, acc);
+          // mm_write(globalRow, globalCol, float(globalCol));
         }
       }
   `;
