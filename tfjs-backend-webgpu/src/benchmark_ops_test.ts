@@ -242,12 +242,12 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
           1,
           1,
           1,
+          5,
           1,
           1,
           1,
           1,
-          1,
-          1,
+          3,
           1,
           1,
           1,
@@ -259,13 +259,13 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
         [1, 3, 3, 2]);
     const f = tf.tensor4d(
         [
-          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3,
-          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+          1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3,
+          1, 1, 1, 1, 1, 1, 7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
         ],
         [3, 3, 2, 2]);
     const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
     console.log(await result.data());
-    expectArraysClose(await result.data(), [19, 23]);
+    expectArraysClose(await result.data(), [31, 32]);
   });
 
   it('conv4dmm3x3f1', async () => {
