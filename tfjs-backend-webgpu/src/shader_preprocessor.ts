@@ -556,7 +556,7 @@ export function getSampler2D(inputInfo: InputInfo): string {
 
   return `
     float ${funcName}(int row, int col) {
-      imageLoad(W, ivec2(row,col)).r; 
+      return imageLoad(${texName}, ivec2(row,col)).r; 
     }
   `;
 }
@@ -594,8 +594,8 @@ export function getSampler3D(inputInfo: InputInfo): string {
     // texC is used directly as physical (no risk of float16 overflow).
     return `
         float ${funcName}(int row, int col, int depth) {
-          int texR = float(row);
-          int texC = dot(vec2(col, depth), vec2(${stride1}, 1));
+          int texR = row;
+          int texC = int(dot(vec2(col, depth), vec2(${stride1}, 1)));
           return imageLoad(${texName}, ivec2(texR,texC)).r;
         }
       `;

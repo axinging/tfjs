@@ -221,7 +221,12 @@ if (texNumC === stride2 && flatOffset == null) {
               col);
           ${addBiasSnippet}
           ${applyActivationSnippet}
-        imageStore(result, ivec2(outCoord[3], outCoord[2]), vec4(value, 0.0, 0.0, 0.0));
+        //imageStore(result, ivec2(outCoord[3], outCoord[2]), vec4(value, 0.0, 0.0, 0.0));
+        int texR = int(dot(vec3(outCoord[0], outCoord[1], outCoord[2]), vec3(${
+          convInfo.outShape[1]} * ${convInfo.outShape[2]}, ${
+          convInfo.outShape[2]}, 1)) );
+            int texC = outCoord[3];
+            imageStore(result, ivec2(texC,texR), vec4(value, 0.0, 0.0, 0.0));
     }
 
         void main() {
