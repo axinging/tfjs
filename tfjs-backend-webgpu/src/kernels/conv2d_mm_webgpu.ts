@@ -235,7 +235,9 @@ if (texNumC === stride2 && flatOffset == null) {
           mm_matMul(dimAOuter, dimInner, dimBOuter);
         }
       `;
-    this.shaderKey = `conv2dmm'${elementsPerThread.join('')}${fitA}${fitB}${
-        addBiasSnippet}${activationSnippet}`;
+      this.shaderKey = `conv2dmm'${elementsPerThread.join('')}${fitA}${fitB}${
+        addBiasSnippet}${activationSnippet}${convInfo.inShape}${convInfo.outShape}${convInfo.filterShape}`;
+      console.log(this.shaderKey);
+      
   }
 }

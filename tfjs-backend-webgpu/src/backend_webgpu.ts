@@ -69,7 +69,8 @@ type BufferInfo = {
   texture?: GPUTexture,
   // Below is texture specific.
   width?: number,
-  height?: number
+  height?: number,
+  texShape?: [number, number];
 };
 
 type TensorBufferInfo = {
@@ -226,7 +227,7 @@ export class WebGPUBackend extends KernelBackend {
         util.sizeFromShape(shape) * webgpu_util.GPUBytesPerElement(dtype);
     // Reverse:
     const [height, width] = this.getTextureWidthHeight(shape);
-    console.log(
+    console.warn(
         ' shape =' + shape + ', width = ' + width + ', height=' + height);
 
     this.tensorMap.set(dataId, {
@@ -314,7 +315,7 @@ export class WebGPUBackend extends KernelBackend {
           {texture: info.bufferInfo.texture},
           {buffer: staging, bytesPerRow: bytesPerRow},
           {width: width, height: height, depth: 1});
-      console.log(
+      console.warn(
           'xx read copyTextureToBuffer: width = ' + width + '; height = ' +
           height + ', bytesPerRow' + bytesPerRow + ', this.getBufferSize()=' +
           this.textureManager.getBufferSize(width, height));
@@ -330,7 +331,7 @@ export class WebGPUBackend extends KernelBackend {
             staging, this.textureManager.getBufferSize(width, height),
             GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
       }
-      console.log('Read back values=' + new Float32Array(values));
+      console.warn('Read back values=' + new Float32Array(values));
 
       const result = this.textureManager.removeTexturePadding(
           new Float32Array(values), width, height);
@@ -523,7 +524,7 @@ export class WebGPUBackend extends KernelBackend {
 
       // info.bufferInfo.texture =
       // this.acquireTexture(info.bufferInfo.byteSize, format, usage);
-      console.log(
+      console.warn(
           'Upload wxh=' + info.bufferInfo.width + ', ' +
           info.bufferInfo.height);
       info.bufferInfo.texture = this.textureManager.acquireTexture(
@@ -548,7 +549,7 @@ export class WebGPUBackend extends KernelBackend {
             {bytesPerRow: bytesPerRow, rowsPerImage: 1},
             {width: widthTex,height height: heightTex, depth: 1});
         */
-        console.log('Upload: ' + info.values);
+        console.warn('Upload: ' + info.values);
 
         this.textureManager.writeTextureWithCopy(
             this.device, info.bufferInfo.texture, info.values,
@@ -602,6 +603,7 @@ export class WebGPUBackend extends KernelBackend {
       } else {
         this.uploadToGPU(input.dataId, true);
       }
+      // TODO(texture): move this into texture only path.
       const [height, width] = this.getTextureWidthHeight(input.shape);
       const shapeInfo: ShapeInfo = {
         logicalShape: input.shape,
@@ -623,10 +625,19 @@ export class WebGPUBackend extends KernelBackend {
         useTexture: !useBuffer
       };
     });
+    var outShapeInfo: ShapeInfo;
     if (useBuffer2)
       this.uploadToGPU(output.dataId);
     else {
       this.uploadToGPU(output.dataId, true);
+      const [height, width] = this.getTextureWidthHeight(output.shape);
+      outShapeInfo = {
+        logicalShape: output.shape,
+        texShape: [width, height],
+        isUniform: false,
+        isPacked: false,  // output.texData.isPacked,
+        flatOffset: null
+      };
     }
     const bufferShapes = inputs.concat(output).map(d => d.shape);
     const bufferTypes = inputsData.map(d => d.dtype).concat(output.dtype);
@@ -634,7 +645,7 @@ export class WebGPUBackend extends KernelBackend {
         webgpu_program.makeShaderKey(program, bufferShapes, bufferTypes);
     const {bindGroupLayout, pipeline} = this.getAndSavePipeline(key, () => {
       return webgpu_program.compileProgram(
-          this.glslang, this.device, program, inputsData, output);
+          this.glslang, this.device, program, inputsData, output, outShapeInfo);
     });
 
     const shouldTimeProgram = this.activeTimers != null;
@@ -654,7 +665,7 @@ export class WebGPUBackend extends KernelBackend {
     pass.setBindGroup(0, bg);
     pass.dispatch(
         program.dispatch[0], program.dispatch[1], program.dispatch[2]);
-    console.log(' dispatch = ' + program.dispatch);
+    console.warn(' dispatch = ' + program.dispatch);
     pass.endPass();
     this.commandQueue.push(encoder);
 
@@ -904,7 +915,7 @@ export class WebGPUBackend extends KernelBackend {
       // TODO(kainino0x): This may be obsolete, but is kept for reference.
       program = new Conv2DNaiveProgram(convInfo);
     } else {
-      console.log("workPerThread "+ workPerThread);
+      console.warn('workPerThread ' + workPerThread);
       program = new Conv2DMMProgram(convInfo, workPerThread);
       // program = new Conv2DNaiveProgram(convInfo);
     }

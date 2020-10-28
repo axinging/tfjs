@@ -81,14 +81,14 @@ export class TextureManager {
     const [widthTex, heightTex] =
         this.getPackedMatrixTextureShapeWidthHeight(width, height, this.format);
     const bytesPerRow = this.getBytesPerRow(widthTex);
-    console.log(
+    console.warn(
         'in remove: widthTex =' + widthTex + ',heightTex = ' + heightTex);
 
     let textureData = new Float32Array(width * height);
-    console.log(
+    console.warn(
         'in remove: WxH=' + width + ',' + height +
         '; width * height=' + width * height);
-    console.log(
+    console.warn(
         'in removeTexturePadding textureDataWithPadding=' +
         (textureDataWithPadding as Float32Array));
     console.log(textureDataWithPadding.length);
@@ -99,7 +99,7 @@ export class TextureManager {
         textureData[dst] = textureDataWithPadding[src];
       }
     }
-    console.log('in removeTexturePadding textureData=' + textureData);
+    console.warn('in removeTexturePadding textureData=' + textureData);
     return textureData;
   }
 
@@ -136,7 +136,7 @@ export class TextureManager {
   public writeTextureWithCopy(
       device: GPUDevice, texture: GPUTexture, matrixData: BackendValues,
       width: number, height: number) {
-    console.log(
+    console.warn(
         ' write wxh=' + width + ', ' + height +
         ', getBufferSize = ' + this.getBufferSize(width, height));
     const src = this.device.createBuffer({
@@ -193,7 +193,7 @@ export class TextureManager {
         this.getPackedMatrixTextureShapeWidthHeight(width, height, texFormat);
 
     this.numBytesAllocated += width * height * this.kBytesPerTexel;
-    console.log(' xx createTexture WxH = ' + width + ', ' + height);
+    console.warn(' createTexture WxH = ' + width + ', ' + height);
     const newTexture = this.device.createTexture({
       size: {width: widthTex, height: heightTex, depth: 1},
       format: texFormat,

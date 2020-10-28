@@ -69,12 +69,21 @@ export const makeBindGroup =
 
 export const compileProgram =
     (glslang: Glslang, device: GPUDevice, program: WebGPUProgram,
-     inputsData: shader_preprocessor.InputInfo[],
-     output: TensorInfo): WebGPUBinary => {
+     inputsData: shader_preprocessor.InputInfo[], output: TensorInfo,
+     outShapeInfo: shader_preprocessor.ShapeInfo): WebGPUBinary => {
       const outputData = {dtype: output.dtype, shape: output.shape};
+      /*
+      const outShapeInfo: shader_preprocessor.ShapeInfo = {
+        logicalShape: output.shape,
+        texShape: outShapeInfo.texShape,
+        isUniform: false,
+        isPacked: outShapeInfo.isPacked,
+        flatOffset: null
+      };
+      */
 
-      const source =
-          shader_preprocessor.makeShader(inputsData, outputData, program);
+      const source = shader_preprocessor.makeShader(
+          inputsData, outputData, outShapeInfo, program);
       console.warn(source);
       const result = glslang.compileGLSLZeroCopy(source, 'compute', false);
       if (result.data.length === 0) {

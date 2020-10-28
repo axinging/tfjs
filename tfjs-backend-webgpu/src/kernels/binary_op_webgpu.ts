@@ -40,10 +40,12 @@ export class BinaryOpProgram implements WebGPUProgram {
     // TODO(jiajia.qin@intel.com): Heuristically select a good work group size.
     const workGroupSizeX = 128;
     this.workGroupSize = [workGroupSizeX, 1, 1];
-    // const outputShapeLogical = backend_util.assertAndGetBroadcastShape(aShape, bShape);
-    // this.outputShape = getTextureShapeFromLogicalShape(outputShapeLogical);
+    // const outputShapeLogical =
+    // backend_util.assertAndGetBroadcastShape(aShape, bShape); this.outputShape
+    // = getTextureShapeFromLogicalShape(outputShapeLogical);
     this.outputShape = backend_util.assertAndGetBroadcastShape(aShape, bShape);
-    const outputShapeLogical = getTextureShapeFromLogicalShape(this.outputShape);
+    const outputShapeLogical =
+        getTextureShapeFromLogicalShape(this.outputShape);
     this.dispatchLayout = {
       x: [0],
       y: [1]
@@ -60,6 +62,7 @@ export class BinaryOpProgram implements WebGPUProgram {
 
 
     if (shapesFit) {
+      console.error("TODO(texture): not tried");
       this.userCode = `
           float binaryOperation(float a, float b) {
             ${op}
@@ -81,6 +84,7 @@ export class BinaryOpProgram implements WebGPUProgram {
         `;
       this.shaderKey = `binary2${op}`;
     } else if (sizeFit) {
+      console.error("TODO(texture): not tried");
       const type = getCoordsDataType(this.outputShape.length);
       this.userCode = `
       float binaryOperation(float a, float b) {
@@ -115,13 +119,9 @@ export class BinaryOpProgram implements WebGPUProgram {
 
           if(flatIndex < ${size}) {
             ${type} coords = getCoordsFromFlatIndex(flatIndex);
-
-            //float a = getAAtOutCoords(coords);
-            //float b = getBAtOutCoords(coords);
-            float a = imageLoad(A, ivec2(gl_GlobalInvocationID.xy)).r;//imageLoad(A, ivec2(index, 0)).r;
-            float b = imageLoad(B, ivec2(gl_GlobalInvocationID.xy)).r;
-            imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(binaryOperation(a, b), 0.0, 0.0, 0.0));
-            //setOutput(flatIndex, binaryOperation(a, b));
+            float a = getAAtOutCoords();
+            float b = getBAtOutCoords();
+            setOutput(binaryOperation(a, b));
           }
         }
       }
