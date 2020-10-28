@@ -28,7 +28,9 @@ export class Pool2DProgram implements WebGPUProgram {
   userCode: string;
   dispatchLayout: {x: number[], y: number[], z: number[]};
   dispatch: [number, number, number];
-  variableNames = ['x'];
+  // TODO(texture).
+  variableNames: string[] = [];
+  variableTextureNames = ['x'];
   uniforms = 'ivec2 pad, stride, dilation, convDims, filterDims;';
   // TODO(jiajia.qin@intel.com): Dynamically choose different workGroupSize and
   // workPerThead for different output shapes.

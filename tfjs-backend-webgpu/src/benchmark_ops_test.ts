@@ -21,31 +21,38 @@ import { test_util } from '@tensorflow/tfjs-core';
 import { describeWebGPU } from './test_util';
 const expectArraysClose = test_util.expectArraysClose;
 
-/*
-function createFloat32Array(w: number, h: number) {
-  const matrix = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) {
-    matrix[i] =
-        i % 5;  // Math.random();  // tf.randomUniform(shape, 0, 2.5);//0.01*i;
-  }
-  return matrix;
-}
-
-async function doTest(
-    xShape: [number, number, number, number],
-    fShape: [number, number, number, number], stride: [number, number],
-    pad: 'valid'|'same'|number, format: 'NHWC'|'NCHW') {
-  const x = tf.tensor4d(
-      createFloat32Array(xShape[0] * xShape[1] * xShape[2], xShape[3]), xShape);
-  const f = tf.tensor4d(
-      createFloat32Array(fShape[0] * fShape[1] * fShape[2], fShape[3]), fShape);
-  const result = tf.conv2d(x, f, stride, pad, format);
-  console.log(await result.data());
-  return await result.data();
-}
-*/
 
 describeWebGPU('Ops conv2dbenchmarks', () => {
+
+  // Pass
+  it('maxpooltexf1 x=[1,1,1] f=[1,1] s=1 [0] => [0]', async () => {
+    const x = tf.tensor4d(
+      [1, 2, 3, 4, 5, 6, 7, 9, 8, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 3, 2]);
+   //const filter = [1, 1];
+   //const stride = [2, 2];
+   const pad = 'same';
+   const result = tf.maxPool(x, [1, 1], [2, 2], pad);
+   console.log(result.shape);
+   // 1,2,2,2
+   console.log(await result.data());
+
+   expectArraysClose(await result.data(), [1,2,5,6,4,5,8,9]);
+  });
+
+  it('maxpooltexf3 x=[1,1,1] f=[1,1] s=1 [0] => [0]', async () => {
+    const x = tf.tensor4d(
+      [1, 2, 3, 4, 5, 6, 7, 9, 8, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 3, 2]);
+   //const filter = [1, 1];
+   //const stride = [2, 2];
+   const pad = 'same';
+   const result = tf.maxPool(x, [3, 3], [2, 2], pad);
+   console.log(result.shape);
+   // 1,2,2,2
+   console.log(await result.data());
+
+   expectArraysClose(await result.data(), [8,9,8,6,8,9,8,9]);
+  });
+
   // SUCCESS
   it('conmm1 conv2d conv2d x=[2,2,2,2] f=[1,1,2,2] s=1 d=1 p=0', async () => {
     const inputDepth = 2;
@@ -87,28 +94,28 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
     expectArraysClose(resultData, new Float32Array([25.6, 53.5, 157.0, 220.9]));
   });
 
-  // Fail, 4D squeeze to 3D input not supported
-  it('conmm21 x=[1,3,3,2] f=[2,2,2,1] s=1 d=1 p=valid', async () => {
-    const pad = 'valid';
-    const stride = 1;
 
-    const x = tf.tensor4d(
-      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90],
-      [1, 3, 3, 2]);
-    const w = tf.tensor4d([1, 2, 5, 4, 5, 6, 7, 8], [2, 2, 2, 1]);
-
-    const result = tf.conv2d(x, w, stride, pad);
-
-    const resultData = await result.data();
-    console.log(resultData);
-    console.log(result.shape);
-    expect(result.shape).toEqual([1, 2, 2, 1]);
-    expectArraysClose(resultData, new Float32Array([262,545,1588,2249]));
-    // 25.600000381469727,53.5,157,220.89999389648438
-  });
+    // Fail, 4D squeeze to 3D input not supported
+    it('conmm21 x=[1,3,3,2] f=[2,2,2,1] s=1 d=1 p=valid', async () => {
+      const pad = 'valid';
+      const stride = 1;
+  
+      const x = tf.tensor4d(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90],
+        [1, 3, 3, 2]);
+      const w = tf.tensor4d([1, 2, 5, 4, 5, 6, 7, 8], [2, 2, 2, 1]);
+  
+      const result = tf.conv2d(x, w, stride, pad);
+  
+      const resultData = await result.data();
+      console.log(resultData);
+      console.log(result.shape);
+      expect(result.shape).toEqual([1, 2, 2, 1]);
+      expectArraysClose(resultData, new Float32Array([262,545,1588,2249]));
+    });
 
     // Pass
-  it('conmm22 x=[1,3,3,2] f=[2,2,2,1] s=1 d=1 p=valid', async () => {
+  it('conmm22 x=[1,3,3,2] f=[2,2,2,2] s=1 d=1 p=valid', async () => {
     const pad = 'valid';
     const stride = 1;
 
