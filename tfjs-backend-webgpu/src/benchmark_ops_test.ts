@@ -16,9 +16,9 @@
  */
 
 import * as tf from '@tensorflow/tfjs-core';
-import {test_util} from '@tensorflow/tfjs-core';
+import { test_util } from '@tensorflow/tfjs-core';
 
-import {describeWebGPU} from './test_util';
+import { describeWebGPU } from './test_util';
 const expectArraysClose = test_util.expectArraysClose;
 
 /*
@@ -47,7 +47,7 @@ async function doTest(
 
 describeWebGPU('Ops conv2dbenchmarks', () => {
   // SUCCESS
-  it('conv2d conv2d x=[2,2,2,2] f=[1,1,2,2] s=1 d=1 p=0', async () => {
+  it('conmm1 conv2d conv2d x=[2,2,2,2] f=[1,1,2,2] s=1 d=1 p=0', async () => {
     const inputDepth = 2;
     const inShape: [number, number, number, number] = [2, 2, 2, inputDepth];
     const outputDepth = 2;
@@ -57,25 +57,25 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
 
     // row is 0,1,2,3,4,5,6,7.
     const x = tf.tensor4d(
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], inShape);
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], inShape);
     const w =
-        tf.tensor4d([-1, 1, -2, 0.5], [fSize, fSize, inputDepth, outputDepth]);
+      tf.tensor4d([-1, 1, -2, 0.5], [fSize, fSize, inputDepth, outputDepth]);
 
     const result = tf.conv2d(x, w, stride, pad);
     expect(result.shape).toEqual([2, 2, 2, 2]);
     const expected =
-        [-5, 2, -11, 5, -17, 8, -23, 11, -29, 14, -35, 17, -41, 20, -47, 23];
+      [-5, 2, -11, 5, -17, 8, -23, 11, -29, 14, -35, 17, -41, 20, -47, 23];
 
     expectArraysClose(await result.data(), expected);
   });
   // FAILED
-  it('x=[3,3,2] f=[2,2,2,1] s=1 d=1 p=valid', async () => {
+  it('conmm x=[3,3,2] f=[2,2,2,1] s=1 d=1 p=valid', async () => {
     const pad = 'valid';
     const stride = 1;
 
     const x = tf.tensor3d(
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90],
-        [3, 3, 2]);
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90],
+      [3, 3, 2]);
     const w = tf.tensor4d([.1, .2, .3, .4, .5, .6, .7, .8], [2, 2, 2, 1]);
 
     const result = tf.conv2d(x, w, stride, pad);
@@ -122,7 +122,7 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
     expectArraysClose(await result.data(), expected);
   });
 
-  it('x=[4,2,1] f=[4,2,1,1] s=1 d=1 p=same', async () => {
+  it('conmm x=[4,2,1] f=[4,2,1,1] s=1 d=1 p=same', async () => {
     const inputDepth = 1;
     const outputDepth = 1;
     const pad = 'same';
@@ -132,7 +132,7 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
 
     const x = tf.tensor3d([1, 2, 3, 4, 5, 6, 7, 8], [4, 2, inputDepth]);
     const w =
-        tf.tensor4d([3, 1, 5, 0, 2, 7, 8, 9], [4, 2, inputDepth, outputDepth]);
+      tf.tensor4d([3, 1, 5, 0, 2, 7, 8, 9], [4, 2, inputDepth, outputDepth]);
 
     const result = tf.conv2d(x, w, stride, pad, dataFormat, dilation);
 
@@ -145,14 +145,14 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
     const inputDepth = 1;
     const outputDepth = 1;
     const pad =
-        [[0, 0], [1, 2], [0, 1], [0, 0]] as tf.backend_util.ExplicitPadding;
+      [[0, 0], [1, 2], [0, 1], [0, 0]] as tf.backend_util.ExplicitPadding;
     const stride = 1;
     const dataFormat = 'NHWC';
     const dilation = 1;
 
     const x = tf.tensor3d([1, 2, 3, 4, 5, 6, 7, 8], [4, 2, inputDepth]);
     const w =
-        tf.tensor4d([3, 1, 5, 0, 2, 7, 8, 9], [4, 2, inputDepth, outputDepth]);
+      tf.tensor4d([3, 1, 5, 0, 2, 7, 8, 9], [4, 2, inputDepth, outputDepth]);
 
     const result = tf.conv2d(x, w, stride, pad, dataFormat, dilation);
 
@@ -173,7 +173,7 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
 
     const x = tf.tensor3d([1, 2, 3, 4], inputShape);
     const w =
-        tf.tensor4d([3, 1, 5, 0], [fSize, fSize, inputDepth, outputDepth]);
+      tf.tensor4d([3, 1, 5, 0], [fSize, fSize, inputDepth, outputDepth]);
 
     const result = tf.conv2d(x, w, stride, pad, dataFormat, dilation);
 
@@ -201,103 +201,510 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
 
   it('conv4dmm3x3all1', async () => {
     const x = tf.tensor4d(
-        [
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-        ],
-        [1, 3, 3, 2]);
+      [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+      ],
+      [1, 3, 3, 2]);
     const f = tf.tensor4d(
-        [
-          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
-        ],
-        [3, 3, 2, 2]);
+      [
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+      ],
+      [3, 3, 2, 2]);
     const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
     console.log(await result.data());
-    expectArraysClose(await result.data(), [18, 19]);
+    expectArraysClose(await result.data(), [19, 21]);
   });
 
 
-  it('conv4dmm3x3x1', async () => {
+  it('conv4dmm3x3o1', async () => {
     const x = tf.tensor4d(
-        [
-          1,
-          1,
-          1,
-          1,
-          1,
-          5,
-          1,
-          1,
-          1,
-          1,
-          3,
-          1,
-          1,
-          1,
-          1,
-          1,
-          1,
-          2,
-        ],
-        [1, 3, 3, 2]);
+      [
+        1,
+        1,
+        1,
+        1,
+        1,
+        5,
+        1,
+        1,
+        1,
+        1,
+        3,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+      ],
+      [1, 3, 3, 2]);
     const f = tf.tensor4d(
-        [
-          1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3,
-          1, 1, 1, 1, 1, 1, 7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
-        ],
-        [3, 3, 2, 2]);
+      [
+        1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3,
+        1, 1, 1, 1, 1, 1, 7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+      ],
+      [3, 3, 2, 2]);
     const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
     console.log(await result.data());
     expectArraysClose(await result.data(), [31, 32]);
   });
 
 
+  it('conv4dmm3x3o2', async () => {
+    const x = tf.tensor4d(
+      [
+        1,
+        1,
+        1,
+        1,
+        1,
+        5,
+        1,
+        3,
+        1,
+        1,
+        3,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+      ],
+      [1, 3, 3, 2]);
+    const f = tf.tensor4d(
+      [
+        1, 4, 1, 1, 1, 1, 1, 1, 1, 8, 1, 1, 1, 1, 1, 1, 1, 3,
+        1, 1, 1, 1, 1, 1, 7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+      ],
+      [3, 3, 2, 2]);
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [33, 41]);
+  });
+
+
+
+  it('conv4dmm3x3o6', async () => {
+    const x = tf.tensor4d(
+      [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1, //1: real 19, 20
+        //2 not work, 1not work
+      ],
+      [1, 3, 3, 2]);
+    const f = tf.tensor4d(
+      [
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      ],
+      [3, 3, 2, 2]);
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [19, 21]);
+  });
+
+
+  // real 18, 18
+  it('conv4dmm3x3x19', async () => {
+    const x = tf.tensor4d(
+      [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18, 
+      ],
+      [1, 3, 3, 2]);
+    const f = tf.tensor4d(
+      [
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      ],
+      [3, 3, 2, 2]);
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [171, 171]);
+  });
+
+
+  it('conv4dmm3x3f19', async () => {
+    const x = tf.tensor4d(
+      [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+      ],
+      [1, 3, 3, 2]);
+    const f = tf.tensor4d(
+      [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+      ],
+      [3, 3, 2, 2]);
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [162, 180]);
+    // real [1779, 1950]
+  });
+  /*
+
+    // error best case
+
+    it('conv4dmm3x3o6', async () => {
+      const x = tf.tensor4d(
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1, 
+            3,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1, //1: real 20, 22
+            //2 not work, 1not work
+          ],
+          [1, 3, 3, 2]);
+      const f = tf.tensor4d(
+          [
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+          ],
+          [3, 3, 2, 2]);
+      const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+      console.log(await result.data());
+      expectArraysClose(await result.data(), [20,26]);
+    });
+    */
+
+  /*
+        // error
+
+        it('conv4dmm3x3o6', async () => {
+          const x = tf.tensor4d(
+              [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1, 
+                //1, //19, 30, correct.
+                3,// 21, 36. incorrect. real: 21, 46
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                2,
+              ],
+              [1, 3, 3, 2]);
+          const f = tf.tensor4d(
+              [
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 8, 1, 1, 1, 1, 1, 1, 1, 3,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+              ],
+              [3, 3, 2, 2]);
+          const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+          console.log(await result.data());
+          expectArraysClose(await result.data(), [21,36]);
+        });
+        */
+  /*
+      // error
+
+      it('conv4dmm3x3o6', async () => {
+        const x = tf.tensor4d(
+            [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1, 
+              //1, 27,39, real 27, 49
+              //2, 28, 40
+              3,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              2,
+            ],
+            [1, 3, 3, 2]);
+        const f = tf.tensor4d(
+            [
+              1, 1, 1, 1, 1, 1, 1, 1, 1, 8, 1, 1, 1, 1, 1, 1, 1, 3,
+              1, 1, 1, 1, 1, 1, 7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+            ],
+            [3, 3, 2, 2]);
+        const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+        console.log(await result.data());
+        expectArraysClose(await result.data(), [27,36]);
+        //real :  [27, 46]
+      });
+      */
+
+  /*
+    // error
+    it('conv4dmm3x3o6', async () => {
+      const x = tf.tensor4d(
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1, 
+            //1, 27,39, real 27, 49
+            //2, 28, 40
+            3,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            2,
+          ],
+          [1, 3, 3, 2]);
+      const f = tf.tensor4d(
+          [
+            1, 4, 1, 1, 1, 1, 1, 1, 1, 8, 1, 1, 1, 1, 1, 1, 1, 3,
+            1, 1, 1, 1, 1, 1, 7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+          ],
+          [3, 3, 2, 2]);
+      const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+      console.log(await result.data());
+      expectArraysClose(await result.data(), [27,39]);
+    });
+    */
+
+  // error
+  it('conv4dmm3x3o3', async () => {
+    const x = tf.tensor4d(
+      [
+        1,
+        1,
+        1,
+        1,
+        1,
+        5,
+        1,
+        1,
+        1,
+        1,
+        3,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+      ],
+      [1, 3, 3, 2]);
+    const f = tf.tensor4d(
+      [
+        1, 4, 1, 1, 1, 1, 1, 1, 1, 8, 1, 1, 1, 1, 1, 1, 1, 3,
+        1, 1, 1, 1, 1, 1, 7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+      ],
+      [3, 3, 2, 2]);
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [31, 39]);
+  });
+
+
+
+  // pass
+  it('conv4dmm3x3o5', async () => {
+    const x = tf.tensor4d(
+      [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+      ],
+      [1, 3, 3, 2]);
+    const f = tf.tensor4d(
+      [
+        1, 4, 1, 1, 1, 1, 1, 1, 1, 8, 1, 1, 1, 1, 1, 1, 1, 3,
+        1, 1, 1, 1, 1, 1, 7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+      ],
+      [3, 3, 2, 2]);
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [25, 33]);
+  });
+
+  // pass
+  it('conv4dmm3x3o4', async () => {
+    const x = tf.tensor4d(
+      [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+      ],
+      [1, 3, 3, 2]);
+    const f = tf.tensor4d(
+      [
+        1, 4, 1, 1, 1, 1, 1, 1, 1, 8, 1, 1, 1, 1, 1, 1, 1, 3,
+        1, 1, 1, 1, 1, 1, 7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+      ],
+      [3, 3, 2, 2]);
+    const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [24, 31]);
+  });
+
   it('conv4dmm3x3c1', async () => {
     const x = tf.tensor4d(
-        [
-          0,
-          1,
-          3,
-          1,
-          2,
-          3,
-          2,
-          2,
-          3,
-          4,
-          5,
-          1,
-          4,
-          2,
-          1,
-          0,
-          1,
-          2,
-        ],
-        [1, 3, 3, 2]);
+      [
+        0,
+        1,
+        3,
+        1,
+        2,
+        3,
+        2,
+        2,
+        3,
+        4,
+        5,
+        1,
+        4,
+        2,
+        1,
+        0,
+        1,
+        2,
+      ],
+      [1, 3, 3, 2]);
     const f = tf.tensor4d(
-        [
-          0, 1, 2, 3, 4, 5, 1, 1, 1, 0, 1, 2, 3, 4, 5, 1, 1, 1,
-          0, 1, 2, 3, 4, 5, 1, 1, 1, 0, 1, 2, 3, 4, 4, 5, 1, 1,
-        ],
-        [3, 3, 2, 2]);
+      [
+        0, 1, 2, 3, 4, 5, 1, 1, 1, 0, 1, 2, 3, 4, 5, 1, 1, 1,
+        0, 1, 2, 3, 4, 5, 1, 1, 1, 0, 1, 2, 3, 4, 4, 5, 1, 1,
+      ],
+      [3, 3, 2, 2]);
     const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
     console.log(await result.data());
     expectArraysClose(await result.data(), [66, 75]);
@@ -306,22 +713,22 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
 
   it('conv4dmm3x3b', async () => {
     const x = tf.tensor4d(
-        [
-          0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2,
-          3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5,
-        ],
-        [1, 3, 3, 4]);
+      [
+        0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2,
+        3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5,
+      ],
+      [1, 3, 3, 4]);
     const f = tf.tensor4d(
-        [
-          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
-          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
-          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
-          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
-          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
-          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
-          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8
-        ],
-        [3, 3, 4, 4]);
+      [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+        3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+        6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+        3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+        6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8
+      ],
+      [3, 3, 4, 4]);
 
     const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
     console.log(await result.data());
@@ -331,25 +738,25 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
 
   it('conv4dmm5x5', async () => {
     const x = tf.tensor4d(
-        [
-          0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3, 4,
-          5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1,
-          0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4,
-          5, 1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2,
-          3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-        ],
-        [1, 5, 5, 4]);
+      [
+        0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1,
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2, 3, 2, 2, 3, 4,
+        5, 1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 3, 1, 2,
+        3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+      ],
+      [1, 5, 5, 4]);
     const f = tf.tensor4d(
-        [
-          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
-          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
-          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
-          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
-          3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
-          6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
-          0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8
-        ],
-        [3, 3, 4, 4]);
+      [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+        3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+        6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2,
+        3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5,
+        6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8
+      ],
+      [3, 3, 4, 4]);
 
     const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
     console.log(await result.data());
@@ -363,23 +770,23 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
 
   it('conv2dmm5x5', async () => {
     const x = tf.tensor4d(
-        [
-          0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4,
-          2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-        ],
-        [1, 5, 5, 1]);
+      [
+        0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4,
+        2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+      ],
+      [1, 5, 5, 1]);
     const f = tf.tensor4d([0, 1, 2, 3, 4, 5, 6, 7, 8], [3, 3, 1, 1]);
 
     const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');
     console.log(await result.data());
 
     expectArraysClose(
-        await result.data(), [103, 84, 89, 68, 81, 101, 151, 183, 212]);
+      await result.data(), [103, 84, 89, 68, 81, 101, 151, 183, 212]);
   });
 
   it('conv2dmm4x4', async () => {
     const x = tf.tensor4d(
-        [0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0], [1, 4, 4, 1]);
+      [0, 1, 3, 1, 2, 3, 2, 2, 3, 4, 5, 1, 4, 2, 1, 0], [1, 4, 4, 1]);
     const f = tf.tensor4d([0, 1, 2, 3, 4, 5, 6, 7, 8], [3, 3, 1, 1]);
 
     const result = tf.conv2d(x, f, [1, 1], 'valid', 'NHWC');

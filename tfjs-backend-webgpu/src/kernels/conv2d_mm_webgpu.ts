@@ -189,13 +189,13 @@ if (texNumC === stride2 && flatOffset == null) {
 
           // TODO(texture): For 4D(if (texNumC === stride2) only:
           int texR = int(dot(vec3(coord[0], coord[1], coord[2]), vec3(${
-        convInfo.inShape[1]} * ${convInfo.inShape[2]} , ${
-        convInfo.inShape[2]} , 1)) );
+        convInfo.inShape[1]} * ${convInfo.inShape[2]}, ${
+        convInfo.inShape[2]}, 1)) );
           int texC = coord[3];
-          return getX(coord[0],coord[1], coord[2], coord[3]); //when f 1, this is 8
-          //return 1.0; //when f is 1 and x all 1, 32
+          //return getX(coord[0],coord[1], coord[2], coord[3]);
+          return imageLoad(x, ivec2(texC,texR)).r;
         }
-        // 45
+
         // dispatch 1,1,1
         // workgroup size: 4, 16, 1
     
