@@ -837,6 +837,7 @@ export function getSampler3D(inputInfo: InputInfo): string {
   console.warn(' stride1 = ' + stride1);
   if (texNumC === stride0)
     // texC is used directly as physical (no risk of float16 overflow).
+    // TODO(texture): not tested.
     return `
         float ${funcName}(int row, int col, int depth) {
           int texR = row;
@@ -846,18 +847,22 @@ export function getSampler3D(inputInfo: InputInfo): string {
       `;
 
   // case [logShape[0] * logShape[1], logShape[2]];
-  if (texNumC === stride1) {
+  // TODO(texture): this seems R and C were misused.
+  if (texNumR === stride1) {
     // texR is used directly as physical (no risk of float16 overflow).
     return `
     float ${funcName}(int row, int col, int depth) {
-      int texR = int(dot(vec2(row, col), vec2(${shape[1]}, 1)));
-      int texC = int(depth);
+      //int texR = int(dot(vec2(row, col), vec2(${shape[1]}, 1)));
+      // int texC = int(depth);
       // int texC = col%2;
+            // TODO(texture): handle this for squeezed and 2D, and 3D.
+      int texR = int(dot(vec2(row, col), vec2(${inputInfo.shape[1]}, 1)));
+      int texC = depth;
       return imageLoad(${texName}, ivec2(texC,texR)).r;
     }
   `;
   }
-
+  // TODO(texture): not tested.
   return `
     float ${funcName}(int row, int col, int depth) {
       // Explicitly use integer operations as dot() only works on floats.
