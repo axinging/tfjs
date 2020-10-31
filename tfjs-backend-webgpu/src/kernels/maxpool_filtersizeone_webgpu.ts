@@ -65,13 +65,15 @@ export class MaxPoolWithFilterSizeEqualsOneProgram implements WebGPUProgram {
           */
           float value = getX(batch, xRCorner, xCCorner, d);
 
-          //setOutput(batch, coords[1], coords[2], d, value);
+          setOutput(batch, coords[1], coords[2], d, value);
+          /*
           ivec4 outCoord = ivec4(batch, coords[1], coords[2], d);
           int texR2 = int(dot(vec3(outCoord[0], outCoord[1], outCoord[2]), vec3(${
         convInfo.outShape[1]} * ${convInfo.outShape[2]}, ${
         convInfo.outShape[2]}, 1)) );
           int texC2 = outCoord[3];
           imageStore(result, ivec2(texC2,texR2), vec4(value, 0.0, 0.0, 0.0));
+          */
         }
       }
     `;

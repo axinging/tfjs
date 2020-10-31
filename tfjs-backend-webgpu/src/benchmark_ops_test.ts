@@ -75,7 +75,7 @@ describeWebGPU('padtexture0d', () => {
 
 describeWebGPU('Ops conv2dbenchmarks', () => {
   // Pass, MaxPoolWithFilterSizeEqualsOneProgram
-  it('maxpooltexf1 x=[1,1,1] f=[1,1] s=1 [0] => [0]', async () => {
+  it('maxpooltexf1 x=[1, 3, 3, 2] f=[1,1] s=1 [0] => [0]', async () => {
     const x = tf.tensor4d(
         [1, 2, 3, 4, 5, 6, 7, 9, 8, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 3, 2]);
     // const filter = [1, 1];
@@ -90,7 +90,7 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
   });
 
   // Pass, Pool2DProgram
-  it('maxpooltexf3 x=[1,1,1] f=[1,1] s=1 [0] => [0]', async () => {
+  it('maxpooltexf3 x=[1, 3, 3, 2] f=[1,1] s=1 [0] => [0]', async () => {
     const x = tf.tensor4d(
         [1, 2, 3, 4, 5, 6, 7, 9, 8, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 3, 2]);
     // const filter = [1, 1];

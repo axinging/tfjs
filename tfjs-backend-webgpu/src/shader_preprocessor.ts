@@ -295,12 +295,25 @@ function getSetOutputSnippet(
       void setOutput(${dims.map(d => `int ${d}`).join(', ')}, float value) {
         int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), ${
         getShapeCoords(outShape)});
-        setOutput(flatIndex, value);
+        //setOutput(flatIndex, value);
+        // TODO(texture): make this work for 3D, 2D.
+        ivec4 coords = ivec4(d0,d1,d2,d3);
+        int texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
+        outShape[1]} * ${outShape[2]}, ${outShape[2]}, 1)));
+        int texC = coords[3];
+        imageStore(result, ivec2(texC, texR), vec4(value, 0.0, 0.0, 0.0));
       }
       void setOutput(${dims.map(d => `int ${d}`).join(', ')}, int value) {
         int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), ${
         getShapeCoords(outShape)});
-        setOutput(flatIndex, value);
+        // setOutput(flatIndex, value);
+        // TODO(texture): not tested.
+        // TODO(texture): make this work for 3D, 2D.
+        ivec4 coords = ivec4(d0,d1,d2,d3);
+        int texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
+        outShape[1]} * ${outShape[2]}, ${outShape[2]}, 1)));
+        int texC = coords[3];
+        imageStore(result, ivec2(texC, texR), vec4(value, 0.0, 0.0, 0.0));
       }
     `;
   }
