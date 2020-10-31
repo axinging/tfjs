@@ -123,9 +123,12 @@ export class BinaryOpProgram implements WebGPUProgram {
             float a = getAAtOutCoords();
             float b = getBAtOutCoords();
             setOutput(binaryOperation(a, b));
+            /*
             int texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
           aShape[1]} * ${aShape[2]}, ${aShape[2]}, 1)));
+
               int texC = coords[3];
+              */
             //setOutput(float(10));
             //
             /*

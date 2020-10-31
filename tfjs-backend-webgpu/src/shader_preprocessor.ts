@@ -242,6 +242,18 @@ function getSetOutputSnippet(
     }
     void setOutput(int flatIndex, int value) {
     }`;
+  } else if (useTexture && outRank === 3) {
+    snippet = `void setOutput(float value) {
+      // TODO(texture): This only works under 3D.
+      ivec3 coords = getOutputCoords();
+      int texR = int(dot(vec2(coords[0], coords[1]), vec2(${outShape[1]}, 1)));
+      int texC = coords[2];
+      imageStore(result, ivec2(texC, texR), vec4(value, 0.0, 0.0, 0.0));
+    }
+    void setOutput(int flatIndex, float value) {
+    }
+    void setOutput(int flatIndex, int value) {
+    }`;
   } else if (useTexture && outRank === 4) {
     snippet = `void setOutput(float value) {
       // TODO(texture): This only works under 4D.
@@ -500,31 +512,88 @@ export function getSamplerAtOutputCoords2(
   `;
   }
   */
-
-  return `
+  if (outRank == 4)
+    return `
     float ${funcName}() {
       ${type} coords = getOutputCoords();
       ${coordsSnippet}
       // TODO(texture): handle this for squeezed and 2D, and 3D.
       int texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
-      inInfo.shape[1]} * ${inInfo.shape[2]}, ${inInfo.shape[2]}, 1)));
+        inInfo.shape[1]} * ${inInfo.shape[2]}, ${inInfo.shape[2]}, 1)));
       int texC = coords[3];
       return imageLoad(${texName}, ivec2(texC,texR)).r;
       /*
       return float(${texName}[getFlatIndex(${unpackedCoordsSnippet}, ${
-      getShapeCoords(inInfo.shape)})]);
+        getShapeCoords(inInfo.shape)})]);
       */
     }
 
     float ${funcName}(${type} coords) {
       ${coordsSnippet}
-      int texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
-      inInfo.shape[1]} * ${inInfo.shape[2]}, ${inInfo.shape[2]}, 1)));
-        int texC = coords[3];
+      int texR = int(dot(vec2(coords[0], coords[1]), vec2(${
+        inInfo.shape[1]}, 1)));
+      int texC = coords[2];
       return imageLoad(${texName}, ivec2(texC,texR)).r;
       /*
       return float(${texName}[getFlatIndex(${unpackedCoordsSnippet}, ${
-      getShapeCoords(inInfo.shape)})]);
+        getShapeCoords(inInfo.shape)})]);
+      */
+    }
+  `;
+  else if (outRank == 3)
+    return `
+    float ${funcName}() {
+      ${type} coords = getOutputCoords();
+      ${coordsSnippet}
+      // TODO(texture): handle this for squeezed and 2D, and 3D.
+      int texR = int(dot(vec2(coords[0], coords[1]), vec2(${
+        inInfo.shape[1]}, 1)));
+      int texC = coords[2];
+      return imageLoad(${texName}, ivec2(texC,texR)).r;
+      /*
+      return float(${texName}[getFlatIndex(${unpackedCoordsSnippet}, ${
+        getShapeCoords(inInfo.shape)})]);
+      */
+    }
+
+    float ${funcName}(${type} coords) {
+      ${coordsSnippet}
+      int texR = int(dot(vec2(coords[0], coords[1]), vec2(${
+        inInfo.shape[1]}, 1)));
+      int texC = coords[2];
+      return imageLoad(${texName}, ivec2(texC,texR)).r;
+      /*
+      return float(${texName}[getFlatIndex(${unpackedCoordsSnippet}, ${
+        getShapeCoords(inInfo.shape)})]);
+      */
+    }
+  `;
+
+  else  // TODO(texture). This not tested.
+    return `
+    float ${funcName}() {
+      ${type} coords = getOutputCoords();
+      ${coordsSnippet}
+      // TODO(texture): handle this for squeezed and 2D, and 3D.
+      int texR = int(dot(vec2(coords[0], coords[1]), vec2(${
+        inInfo.shape[1]}, 1)));
+      int texC = coords[2];
+      return imageLoad(${texName}, ivec2(texC,texR)).r;
+      /*
+      return float(${texName}[getFlatIndex(${unpackedCoordsSnippet}, ${
+        getShapeCoords(inInfo.shape)})]);
+      */
+    }
+
+    float ${funcName}(${type} coords) {
+      ${coordsSnippet}
+      int texR = int(dot(vec2(coords[0], coords[1]), vec2(${
+        inInfo.shape[1]}, 1)));
+      int texC = coords[2];
+      return imageLoad(${texName}, ivec2(texC,texR)).r;
+      /*
+      return float(${texName}[getFlatIndex(${unpackedCoordsSnippet}, ${
+        getShapeCoords(inInfo.shape)})]);
       */
     }
   `;
@@ -890,6 +959,26 @@ function getOutput2DCoords(
   `;
 }
 
+
+export function getOutput3DCoords(
+    shape: [number, number, number], texShape: [number, number]): string {
+  const coordsFromIndexSnippet =
+      shader_util.getLogicalCoordinatesFromFlatIndex(['r', 'c', 'd'], shape);
+
+  return `
+ivec3 getOutputCoords() {
+  ivec2 resTexRC = ivec2(gl_GlobalInvocationID.yx);
+  /*
+  ivec2 resTexRC = ivec2(resultUV.yx *
+                         vec2(${texShape[0]}, ${texShape[1]}));
+  */
+  int index = resTexRC.x * ${texShape[1]} + resTexRC.y;
+  ${coordsFromIndexSnippet}
+  return ivec3(r, c, d);
+}
+`;
+}
+
 function getOutput4DCoords(
     shape: [number, number, number, number],
     texShape: [number, number]): string {
@@ -923,11 +1012,9 @@ function getOutputSamplingSnippet(
   */
     case 2:
       return getOutput2DCoords(outShape as [number, number], outTexShape);
-      /*
-  case 3:
-    return getOutput3DCoords(
-        outShape as [number, number, number], outTexShape);
-        */
+    case 3:
+      return getOutput3DCoords(
+          outShape as [number, number, number], outTexShape);
     case 4:
       return getOutput4DCoords(
           outShape as [number, number, number, number], outTexShape);
