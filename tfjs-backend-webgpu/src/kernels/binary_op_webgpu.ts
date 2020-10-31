@@ -62,7 +62,7 @@ export class BinaryOpProgram implements WebGPUProgram {
 
 
     if (shapesFit) {
-      console.error("TODO(texture): not tried");
+      console.error('TODO(texture): not tried');
       this.userCode = `
           float binaryOperation(float a, float b) {
             ${op}
@@ -84,7 +84,7 @@ export class BinaryOpProgram implements WebGPUProgram {
         `;
       this.shaderKey = `binary2${op}`;
     } else if (sizeFit) {
-      console.error("TODO(texture): not tried");
+      console.error('TODO(texture): not tried');
       const type = getCoordsDataType(this.outputShape.length);
       this.userCode = `
       float binaryOperation(float a, float b) {
@@ -119,9 +119,21 @@ export class BinaryOpProgram implements WebGPUProgram {
 
           if(flatIndex < ${size}) {
             ${type} coords = getCoordsFromFlatIndex(flatIndex);
+            //
             float a = getAAtOutCoords();
             float b = getBAtOutCoords();
             setOutput(binaryOperation(a, b));
+            int texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
+          aShape[1]} * ${aShape[2]}, ${aShape[2]}, 1)));
+              int texC = coords[3];
+            //setOutput(float(10));
+            //
+            /*
+           float a = imageLoad(A, ivec2(gl_GlobalInvocationID.yx)).r;
+           float b = imageLoad(B, ivec2(gl_GlobalInvocationID.yx)).r;
+   
+           imageStore(result, ivec2(gl_GlobalInvocationID.yx), vec4(binaryOperation(a, b), 0.0, 0.0, 0.0));
+           */
           }
         }
       }

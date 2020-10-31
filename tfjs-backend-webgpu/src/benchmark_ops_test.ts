@@ -643,7 +643,7 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
     */
   });
 
-  it('conv4dmmaddtexture', async () => {
+  it('conv4daddtexture', async () => {
     const size_x = 257;
     const size_y = 3;
     const firstMatrixSize: [number, number] = [size_x, size_y];
@@ -655,6 +655,67 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
     console.log(await tf.add(a, b).data());
     compareAddFloat32Array(
         await tf.add(a, b).data(), firstMatrix, secondMatrix, size_x, size_y);
+  });
+  it('conv4dmmadd4dtexture', async () => {
+    const x = tf.tensor4d(
+        [
+          0,
+          1,
+          3,
+          1,
+          2,
+          3,
+          2,
+          2,
+          3,
+          4,
+          5,
+          1,
+          4,
+          2,
+          1,
+          0,
+          1,
+          2,
+        ],
+        [1, 3, 3, 2]);
+    const result = tf.add(x, x);
+    console.log(await result.data());
+    expectArraysClose(
+        await result.data(),
+        [0, 2, 6, 2, 4, 6, 4, 4, 6, 8, 10, 2, 8, 4, 2, 0, 2, 4]);
+    // console.log(result.shape);
+  });
+
+  it('conv4dmmadd3dtexture', async () => {
+    const x = tf.tensor3d(
+        [
+          0,
+          1,
+          3,
+          1,
+          2,
+          3,
+          2,
+          2,
+          3,
+          4,
+          5,
+          1,
+          4,
+          2,
+          1,
+          0,
+          1,
+          2,
+        ],
+        [3, 3, 2]);
+    const result = tf.add(x, x);
+    console.log(await result.data());
+    expectArraysClose(
+        await result.data(),
+        [0, 2, 6, 2, 4, 6, 4, 4, 6, 8, 10, 2, 8, 4, 2, 0, 2, 4]);
+    // console.log(result.shape);
   });
 });
 
