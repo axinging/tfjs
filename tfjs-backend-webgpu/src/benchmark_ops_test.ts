@@ -718,6 +718,7 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
     // console.log(result.shape);
   });
 
+  // Pass when run alone.
   it('conv4dmmadd2dtexture', async () => {
     const x = tf.tensor2d(
         [

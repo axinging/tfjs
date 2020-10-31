@@ -568,7 +568,32 @@ export function getSamplerAtOutputCoords2(
       */
     }
   `;
+  else if (outRank == 2)
+    return `
+    float ${funcName}() {
+      ${type} coords = getOutputCoords();
+      ${coordsSnippet}
+      // TODO(texture): this shift x and y is bad.
+      int texR = coords[1];
+      int texC = coords[0];
+      return imageLoad(${texName}, ivec2(texC,texR)).r;
+      /*
+      return float(${texName}[getFlatIndex(${unpackedCoordsSnippet}, ${
+        getShapeCoords(inInfo.shape)})]);
+      */
+    }
 
+    float ${funcName}(${type} coords) {
+      ${coordsSnippet}
+      int texR = coords[0];
+      int texC = coords[1];
+      return imageLoad(${texName}, ivec2(texC,texR)).r;
+      /*
+      return float(${texName}[getFlatIndex(${unpackedCoordsSnippet}, ${
+        getShapeCoords(inInfo.shape)})]);
+      */
+    }
+  `;
   else  // TODO(texture). This not tested.
     return `
     float ${funcName}() {
@@ -914,7 +939,7 @@ function getOutput2DCoords(
     console.error('TODO(texture), not tried');
     return `
       ivec2 getOutputCoords() {
-        ivec2 resultUV = ivec2(gl_GlobalInvocationID.yx);
+        ivec2 resultUV = ivec2(gl_GlobalInvocationID.xy);
         return ivec2(resultUV.yx * vec2(${texShape[0]}, ${texShape[1]}));
       }
     `;
