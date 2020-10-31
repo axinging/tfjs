@@ -61,15 +61,16 @@ export class Pool2DProgram implements WebGPUProgram {
         if (xC < 0 || xC >= convDims.x) {
           return 0.0;
         }
-        // return getX(batch, xR, xC, d);
+        return getX(batch, xR, xC, d);
+        /*
         int texR, texC;
 
-        texR = int(dot(vec3(batch, xR, xC), vec3(${
-          convInfo.inShape[1]} * ${convInfo.inShape[2]}, ${
-          convInfo.inShape[2]}, 1)) );
+        texR = int(dot(vec3(batch, xR, xC), vec3(${convInfo.inShape[1]} * ${
+        convInfo.inShape[2]}, ${convInfo.inShape[2]}, 1)) );
         texC = d;
 
         return imageLoad(x, ivec2(texC,texR)).r;
+        */
       }
 
       void main() {
@@ -107,8 +108,8 @@ export class Pool2DProgram implements WebGPUProgram {
                   int texR, texC;
 
                   texR = int(dot(vec3(batch, xR, xC), vec3(${
-                    convInfo.inShape[1]} * ${convInfo.inShape[2]}, ${
-                    convInfo.inShape[2]}, 1)) );
+        convInfo.inShape[1]} * ${convInfo.inShape[2]}, ${
+        convInfo.inShape[2]}, 1)) );
                   texC = d;
         
                   float value = imageLoad(x, ivec2(texC,texR)).r;
@@ -127,13 +128,16 @@ export class Pool2DProgram implements WebGPUProgram {
             int d = coords[3] * ${this.workPerThread} + i;
             if (d < ${this.outputShape[3]})
             {
-              //setOutput(batch, coords[1], coords[2], d, ${returnValue});
+              setOutput(batch, coords[1], coords[2], d, ${returnValue});
+              /*
               ivec4 outCoord = ivec4(batch, coords[1], coords[2], d);
               int texR2 = int(dot(vec3(outCoord[0], outCoord[1], outCoord[2]), vec3(${
-                convInfo.outShape[1]} * ${convInfo.outShape[2]}, ${
-                convInfo.outShape[2]}, 1)) );
+        convInfo.outShape[1]} * ${convInfo.outShape[2]}, ${
+        convInfo.outShape[2]}, 1)) );
               int texC2 = outCoord[3];
-              imageStore(result, ivec2(texC2,texR2), vec4(${returnValue}, 0.0, 0.0, 0.0));
+              imageStore(result, ivec2(texC2,texR2), vec4(${
+        returnValue}, 0.0, 0.0, 0.0));
+        */
             }
             else
             {
