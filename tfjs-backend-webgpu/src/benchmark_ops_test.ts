@@ -749,6 +749,17 @@ describeWebGPU('Ops conv2dbenchmarks', () => {
         [0, 2, 6, 2, 4, 6, 4, 4, 6, 8, 10, 2, 8, 4, 2, 0, 2, 4]);
     // console.log(result.shape);
   });
+
+  it('texturerelu', async () => {
+    const a = tf.tensor4d(
+        [1, 2, 3, -3, 1, -2, 5, -3, 1, -2, 5, -3, 1, -2, 7, -3, 1, 9],
+        [1, 3, 3, 2]);
+    const result = tf.relu(a);
+    console.log(await result.data());
+    expectArraysClose(
+        await result.data(),
+        [1, 2, 3, 0, 1, 0, 5, 0, 1, 0, 5, 0, 1, 0, 7, 0, 1, 9]);
+  });
 });
 
 function createFloat32Array(w: number, h: number) {

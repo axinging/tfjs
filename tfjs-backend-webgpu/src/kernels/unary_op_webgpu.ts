@@ -44,7 +44,9 @@ export class UnaryOpProgram implements WebGPUProgram {
   shaderKey: string;
   dispatchLayout: {x: number[]};
   dispatch: [number, number, number];
-  variableNames = ['A'];
+  // TODO(texture).
+  variableNames: string[] = [];
+  variableTextureNames = ['A'];
   workPerThread: number;
   workGroupSize: [number, number, number];
 
@@ -56,7 +58,8 @@ export class UnaryOpProgram implements WebGPUProgram {
     const size = util.sizeFromShape(this.outputShape);
     this.dispatchLayout = flatDispatchLayout(this.outputShape);
     const fit = size % workGroupSizeX === 0;
-    this.workPerThread = fit ? 1 : 2;
+    // TODO(texture): change this to support more wpt.
+    this.workPerThread = 1;  // fit ? 1 : 2;
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
@@ -89,8 +92,18 @@ export class UnaryOpProgram implements WebGPUProgram {
           if(flatIndex < ${size}) {
             ${type} coords = getCoordsFromFlatIndex(flatIndex);
 
-            float a = getAAtOutCoords(coords);
-            setOutput(flatIndex, unaryOperation(a));
+            //float a = getAAtOutCoords(coords);
+            //setOutput(coords[0],coords[1],coords[2],coords[3], unaryOperation(a));
+            //
+            //float a = getAAtOutCoords(coords);
+            float a = getAAtOutCoords();
+            // setOutput(flatIndex, unaryOperation(a));
+            setOutput(unaryOperation(a));
+            //
+            /*
+            float a = imageLoad(A, ivec2(gl_GlobalInvocationID.yx)).r;
+            imageStore(result, ivec2(gl_GlobalInvocationID.yx), vec4(unaryOperation(a), 0.0, 0.0, 0.0));
+            */
           }
         }
       }

@@ -265,6 +265,7 @@ function getSetOutputSnippet(
       //imageStore(result, getOutputCoords(), vec4(value, 0.0, 0.0, 0.0));
     }
     void setOutput(int flatIndex, float value) {
+      imageStore(result, ivec2(flatIndex, 0), vec4(value, 0.0, 0.0, 0.0));
     }
     void setOutput(int flatIndex, int value) {
     }`;
