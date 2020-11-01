@@ -31,7 +31,8 @@ export class PadProgram implements WebGPUProgram {
   // TODO(texture).
   variableNames: string[] = [];
   variableTextureNames = ['x'];
-  workPerThread = 8;
+  // TODO(texture): make this works under WPT = 8.
+  workPerThread = 1;  // 8;
   workGroupSize: [number, number, number] = [16, 1, 1];
 
   constructor(
@@ -40,7 +41,7 @@ export class PadProgram implements WebGPUProgram {
     this.outputShape = paddings.map(
         (p, i) => p[0] /* beforePad */ + xShape[i] + p[1] /* afterPad */);
     const rank = xShape.length;
-    console.log("this.outputShape = "+ this.outputShape);
+    console.log('this.outputShape = ' + this.outputShape);
     const size = util.sizeFromShape(this.outputShape);
     const type = getCoordsDataType(rank);
     this.dispatchLayout = flatDispatchLayout(this.outputShape);
@@ -52,7 +53,7 @@ export class PadProgram implements WebGPUProgram {
     const end = paddings.map((p, i) => p[0] + xShape[i]).join(',');
     const startValue = rank > 1 ? `${type}(${start})` : `${start}`;
     const endValue = rank > 1 ? `${type}(${end})` : `${end}`;
-    const  inShape = xShape;
+    const inShape = xShape;
 
     const leftPadCondition =
         rank > 1 ? `any(lessThan(outC, start))` : `outC < start`;
@@ -82,25 +83,28 @@ export class PadProgram implements WebGPUProgram {
             } else {
               ${type} coords = outC - start;
               //setOutput(flatIndex, getX(${unpackedCoords}));
+              setOutput(getX(${unpackedCoords}));
               int texR, texC;
 
               texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
-                inShape[1]} * ${inShape[2]}, ${
-                inShape[2]}, 1)) );
+        inShape[1]} * ${inShape[2]}, ${inShape[2]}, 1)) );
               texC = coords[3];
     
               float value = imageLoad(x, ivec2(texC,texR)).r;
               /*
               int texR2 = int(dot(vec3(outCoord[0], outCoord[1], outCoord[2]), vec3(${
-                this.outputShape[1]} * ${this.outputShape[2]}, ${
-                this.outputShape[2]}, 1)) );
+        this.outputShape[1]} * ${this.outputShape[2]}, ${
+        this.outputShape[2]}, 1)) );
               int texC2 = outCoord[3];
               imageStore(result, ivec2(texC2,texR2), vec4(value, 0.0, 0.0, 0.0));
               */
-              ivec2 uv = uvFromFlat(5, 9, flatIndex); // padtexture0d1 works.
+             /*
+              ivec2 uv = uvFromFlat(9, 5, flatIndex); // padtexture0d1 works.
               //ivec2 uv = getUVFromFlat(flatIndex);
               //ivec2 uv = uvFromFlat(121, 3, flatIndex); // padtexture0d2 works?.
               imageStore(result, ivec2(uv.y,uv.x), vec4(value, 0.0, 0.0, 0.0));
+              */
+              //
             }
           }
         }

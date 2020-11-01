@@ -33,6 +33,7 @@ describeWebGPU('padtexture0d', () => {
         [1, 3, 3, 5]);
     const result = tf.pad(x, [[0, 0], [1, 1], [1, 1], [0, 0]], 0);
     console.log(await result.data());
+    console.log(result.shape);
     expectArraysClose(await result.data(), [
       0, 0, 0, 0, 0, 0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0, 0,
       0, 0, 0, 0, 0, 0,  0,  0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,  10, 1, 2,
