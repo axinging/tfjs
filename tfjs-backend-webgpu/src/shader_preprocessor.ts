@@ -287,6 +287,25 @@ function getSetOutputSnippet(
     }`;
   }
 
+  if (outRank == 2) {
+    snippet += `ivec2 getUVfromCoords(int d0, int d1) {
+      return ivec2(d0, d1);
+    }`
+  } else if (outRank == 3) {
+    snippet += `ivec2 getUVfromCoords(int d0, int d1, int d2) {
+      int texR = int(dot(ivec2(d0, d1), ivec2(${outShape[1]}, 1)));
+      int texC = d2;
+      return ivec2(texR, texC);
+    }`
+  } else if (outRank == 4) {
+    snippet += `ivec2 getUVfromCoords(int d0, int d1, int d2, int d3) {
+      int texR = int(
+          dot(ivec3(d0, d1, d2),
+              ivec3(${outShape[1]} * ${outShape[2]}, ${outShape[2]}, 1)));
+      int texC = d3;
+      return ivec2(texR, texC);
+    }`
+  }
 
   if (outRank >= 2) {
     const dims = ['d0', 'd1', 'd2', 'd3'].slice(0, outRank);
@@ -298,22 +317,32 @@ function getSetOutputSnippet(
         getShapeCoords(outShape)});
         //setOutput(flatIndex, value);
         // TODO(texture): make this work for 3D, 2D.
-        ivec4 coords = ivec4(d0,d1,d2,d3);
+        /*
+        ivec4 coords = ivec4(${dims.map(d => `${d}`).join(', ')});
         int texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
         outShape[1]} * ${outShape[2]}, ${outShape[2]}, 1)));
         int texC = coords[3];
+        */
+        ivec2 uv = getUVfromCoords(${dims.map(d => `${d}`).join(', ')});
+        int texR = uv.x;
+        int texC = uv.y;
         imageStore(result, ivec2(texC, texR), vec4(value, 0.0, 0.0, 0.0));
       }
       void setOutput(${dims.map(d => `int ${d}`).join(', ')}, int value) {
         int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), ${
         getShapeCoords(outShape)});
+        /*
         // setOutput(flatIndex, value);
         // TODO(texture): not tested.
         // TODO(texture): make this work for 3D, 2D.
-        ivec4 coords = ivec4(d0,d1,d2,d3);
+        ivec4 coords = ivec4(${dims.map(d => `${d}`).join(', ')});
         int texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
         outShape[1]} * ${outShape[2]}, ${outShape[2]}, 1)));
         int texC = coords[3];
+        */
+        ivec2 uv = getUVfromCoords(${dims.map(d => `${d}`).join(', ')});
+        int texR = uv.x;
+        int texC = uv.y;
         imageStore(result, ivec2(texC, texR), vec4(value, 0.0, 0.0, 0.0));
       }
     `;

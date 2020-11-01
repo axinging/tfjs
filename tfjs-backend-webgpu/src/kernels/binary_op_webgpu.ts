@@ -53,11 +53,14 @@ export class BinaryOpProgram implements WebGPUProgram {
     const size = util.sizeFromShape(this.outputShape);
     const sizeFit = size % workGroupSizeX === 0;
     const shapesFit = util.arraysEqual(aShape, bShape) && sizeFit;
-    this.workPerThread = 1;  // shapesFit || sizeFit ? 1 : 2;
+    this.workPerThread = shapesFit || sizeFit ? 1 : 2;
 
     this.dispatch = computeDispatch(
         this.dispatchLayout, outputShapeLogical, this.workGroupSize,
         [this.workPerThread, 1, 1]);
+    const dims = ['coords[0]', 'coords[1]', 'coords[2]', 'coords[3]'].slice(
+        0, this.outputShape.length);
+    dims.map(d => `${d}`).join(', ');
     // this.dispatch = [10, 3, 1];
 
 
@@ -120,9 +123,14 @@ export class BinaryOpProgram implements WebGPUProgram {
           if(flatIndex < ${size}) {
             ${type} coords = getCoordsFromFlatIndex(flatIndex);
             //
-            float a = getAAtOutCoords();
-            float b = getBAtOutCoords();
-            setOutput(binaryOperation(a, b));
+            float a = getAAtOutCoords(coords);
+            float b = getBAtOutCoords(coords);
+            // setOutput(binaryOperation(a, b));
+
+            // float a = getAAtOutCoords(coords);
+            //setOutput(coords[0],coords[1],coords[2],coords[3], binaryOperation(a, b));
+            setOutput(${dims}, binaryOperation(a, b));
+
             /*
             int texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
           aShape[1]} * ${aShape[2]}, ${aShape[2]}, 1)));
