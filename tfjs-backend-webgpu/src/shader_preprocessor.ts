@@ -544,9 +544,9 @@ export function getSamplerAtOutputCoords2(
 
     float ${funcName}(${type} coords) {
       ${coordsSnippet}
-      int texR = int(dot(vec2(coords[0], coords[1]), vec2(${
-        inInfo.shape[1]}, 1)));
-      int texC = coords[2];
+      int texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
+        inInfo.shape[1]} * ${inInfo.shape[2]}, ${inInfo.shape[2]}, 1)));
+      int texC = coords[3];
       return imageLoad(${texName}, ivec2(texC,texR)).r;
       /*
       return float(${texName}[getFlatIndex(${unpackedCoordsSnippet}, ${

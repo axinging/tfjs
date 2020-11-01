@@ -59,10 +59,11 @@ export class UnaryOpProgram implements WebGPUProgram {
     this.dispatchLayout = flatDispatchLayout(this.outputShape);
     const fit = size % workGroupSizeX === 0;
     // TODO(texture): change this to support more wpt.
-    this.workPerThread = 1;  // fit ? 1 : 2;
+    this.workPerThread = fit ? 1 : 2;
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
+    console.log('this.dispatch=' + this.dispatch);
     if (fit) {
       this.userCode = `
       float unaryOperation(float a) {
@@ -92,13 +93,13 @@ export class UnaryOpProgram implements WebGPUProgram {
           if(flatIndex < ${size}) {
             ${type} coords = getCoordsFromFlatIndex(flatIndex);
 
-            //float a = getAAtOutCoords(coords);
-            //setOutput(coords[0],coords[1],coords[2],coords[3], unaryOperation(a));
+            float a = getAAtOutCoords(coords);
+            setOutput(coords[0],coords[1],coords[2],coords[3], unaryOperation(a));
             //
             //float a = getAAtOutCoords(coords);
-            float a = getAAtOutCoords();
+            //float a = getAAtOutCoords();
             // setOutput(flatIndex, unaryOperation(a));
-            setOutput(unaryOperation(a));
+            //setOutput(unaryOperation(a));
             //
             /*
             float a = imageLoad(A, ivec2(gl_GlobalInvocationID.yx)).r;
