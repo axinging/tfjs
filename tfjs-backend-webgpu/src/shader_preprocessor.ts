@@ -878,7 +878,7 @@ export function getSampler3D(inputInfo: InputInfo): string {
   console.warn(' stride0 = ' + stride0);
   console.warn(' texNumC = ' + texNumC);
   console.warn(' stride1 = ' + stride1);
-  if (texNumC === stride0)
+  if (texNumR === stride0)
     // texC is used directly as physical (no risk of float16 overflow).
     // TODO(texture): not tested.
     return `
@@ -898,7 +898,7 @@ export function getSampler3D(inputInfo: InputInfo): string {
       //int texR = int(dot(vec2(row, col), vec2(${shape[1]}, 1)));
       // int texC = int(depth);
       // int texC = col%2;
-            // TODO(texture): handle this for squeezed and 2D, and 3D.
+      // TODO(texture): handle this for squeezed and 2D, and 3D.
       int texR = int(dot(vec2(row, col), vec2(${inputInfo.shape[1]}, 1)));
       int texC = depth;
       return imageLoad(${texName}, ivec2(texC,texR)).r;

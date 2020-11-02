@@ -32,7 +32,7 @@ export class PadProgram implements WebGPUProgram {
   variableNames: string[] = [];
   variableTextureNames = ['x'];
   // TODO(texture): make this works under WPT = 8.
-  workPerThread = 1;  // 8;
+  workPerThread = 1;
   workGroupSize: [number, number, number] = [16, 1, 1];
 
   constructor(
@@ -64,7 +64,9 @@ export class PadProgram implements WebGPUProgram {
         ['coords[0]', 'coords[1]', 'coords[2]', 'coords[3]'].slice(0, rank) :
         'coords';
     console.log(unpackedCoords);
-
+    const dims = ['coords[0]', 'coords[1]', 'coords[2]', 'coords[3]'].slice(
+        0, this.outputShape.length);
+    dims.map(d => `${d}`).join(', ');
     this.userCode = `
       ${type} start = ${startValue};
       ${type} end = ${endValue};
@@ -79,18 +81,22 @@ export class PadProgram implements WebGPUProgram {
             ${type} outC = getCoordsFromFlatIndex(flatIndex);
 
             if (${leftPadCondition} || ${rightPadCondition}) {
-              setOutput(flatIndex, ${constantValue});
+			  ${type} coords = outC;
+              setOutput(${dims}, ${constantValue});
             } else {
               ${type} coords = outC - start;
               //setOutput(flatIndex, getX(${unpackedCoords}));
+              // setOutput(${dims}, getX(${unpackedCoords}));
               setOutput(getX(${unpackedCoords}));
               int texR, texC;
+			  /*
 
               texR = int(dot(vec3(coords[0], coords[1], coords[2]), vec3(${
         inShape[1]} * ${inShape[2]}, ${inShape[2]}, 1)) );
               texC = coords[3];
     
               float value = imageLoad(x, ivec2(texC,texR)).r;
+              */
               /*
               int texR2 = int(dot(vec3(outCoord[0], outCoord[1], outCoord[2]), vec3(${
         this.outputShape[1]} * ${this.outputShape[2]}, ${
