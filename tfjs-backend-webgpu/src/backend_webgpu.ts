@@ -537,6 +537,7 @@ export class WebGPUBackend extends KernelBackend {
           webgpu_texture_util.getTextureShapeFromLogicalShape(
               input.shape, false);
       const shapeInfo: ShapeInfo = {
+        dtype: this.tensorMap.get(input.dataId).dtype,
         logicalShape: input.shape,
         texShape: [width, height],
         isUniform: false,
@@ -561,6 +562,7 @@ export class WebGPUBackend extends KernelBackend {
           webgpu_texture_util.getTextureShapeFromLogicalShape(
               output.shape, false);
       outShapeInfo = {
+        dtype: this.tensorMap.get(output.dataId).dtype,
         logicalShape: output.shape,
         texShape: [width, height],
         isUniform: false,
@@ -578,8 +580,7 @@ export class WebGPUBackend extends KernelBackend {
     const {bindGroupLayout, pipeline} = this.getAndSavePipeline(key, () => {
       if (this.useTexture)
         return webgpu_program.compileProgramTexture(
-            this.glslang, this.device, program, inputsData, output,
-            outShapeInfo);
+            this.glslang, this.device, program, inputsData, outShapeInfo);
       else
         return webgpu_program.compileProgram(
             this.glslang, this.device, program, inputsData, output);
@@ -602,7 +603,6 @@ export class WebGPUBackend extends KernelBackend {
     pass.setBindGroup(0, bg);
     pass.dispatch(
         program.dispatch[0], program.dispatch[1], program.dispatch[2]);
-    console.warn(' dispatch = ' + program.dispatch);
     pass.endPass();
     this.commandQueue.push(encoder);
 

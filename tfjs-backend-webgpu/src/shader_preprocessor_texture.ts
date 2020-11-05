@@ -16,9 +16,9 @@
  */
 
 import {backend_util, DataType, util} from '@tensorflow/tfjs-core';
-const {getBroadcastDims} = backend_util;
-import {symbolicallyComputeStrides} from './shader_util';
+
 import * as shader_util from './shader_compiler_util';
+import {symbolicallyComputeStrides} from './shader_util';
 
 export function getCoordsDataType(rank: number): string {
   if (rank <= 1) {
@@ -71,6 +71,7 @@ interface ProgramParams {
 }
 
 export type ShapeInfo = {
+  dtype: DataType,
   logicalShape: number[],
   texShape: [number, number],
   isUniform: boolean,
@@ -87,8 +88,8 @@ export interface InputInfo {
 }
 
 export function makeShader(
-    inputInfo: InputInfo[], outputData: {dtype: DataType, shape: number[]},
-    outputShapeInfo: ShapeInfo, program: ProgramParams): string {
+    inputInfo: InputInfo[], outputData: ShapeInfo,
+    program: ProgramParams): string {
   const prefixSnippets: string[] = [];
 
   if (program.workGroupSize != null) {
@@ -98,15 +99,6 @@ export function makeShader(
               local_size_z = ${program.workGroupSize[2]}) in;
     `);
   }
-
-  // Output buffer.
-  /*
-  prefixSnippets.push(`
-    layout(std430, set = 0, binding = 0) writeonly buffer ssbOut {
-      ${mapToGlslTypes(outputData.dtype)} result[];
-    };
-  `);
-  */
 
   prefixSnippets.push(`
     layout(set = 0, binding = 0, r32f) uniform writeonly image2D result;
@@ -132,29 +124,19 @@ export function makeShader(
   }
   // const [getOutputCoords, dispatchLayoutRank] =
   //    generateGetOutputCoords(outputData.shape, program.dispatchLayout);
-  const getCoords = generateGetCoordsFromFlatIndex(outputData.shape);
-  // TODO(texture): avoid compile warning.
-  const outputSamplingSnippet = getOutputSamplingSnippet(
-      outputShapeInfo.logicalShape, outputShapeInfo.texShape);
-  // sources.push(outputSamplingSnippet);
+  const getCoords = generateGetCoordsFromFlatIndex(outputData.logicalShape);
+  const outputSamplingSnippet =
+      getOutputSamplingSnippet(outputData.logicalShape, outputData.texShape);
 
-  // console.warn(getOutputCoords);
   const sources = [
     SHADER_PREFIX, prefixSnippets.join('\n'), SAMPLING_SNIPPETS,
-    // getOutputCoords,
     outputSamplingSnippet, getCoords,
-    getSetOutputSnippet(outputData.shape, outputData.dtype)
+    getSetOutputSnippet(outputData.logicalShape, outputData.dtype)
   ];
 
-  // TODO(texture): if (dispatchLayoutRank === outputData.shape.length) {
-  // Input sampling snippet is only meaningful when the output isn't getting
-  // implicitly reshaped (like it does in conv2d_matmul).
   const inputSamplingSnippet =
-      inputInfo.map(x => getInputSamplingSnippet(x, outputShapeInfo))
-          .join('\n');
+      inputInfo.map(x => getInputSamplingSnippet(x, outputData)).join('\n');
   sources.push(inputSamplingSnippet);
-  //}
-
 
   sources.push(program.userCode);
   const source = sources.join('\n');
@@ -343,6 +325,7 @@ function getSetOutputSnippet(
   return snippet;
 }
 
+// outputData: {dtype: DataType, shape: number[], texShape: [number, number]},
 function getInputSamplingSnippet(
     inInfo: InputInfo, outShapeInfo: ShapeInfo): string {
   let res = getSamplerFromInInfo2(inInfo);
@@ -357,7 +340,7 @@ function getInputSamplingSnippet(
 
   const inShape = inInfo.shape;
   if (inShape.length <= outShape.length) {
-    res += getSamplerAtOutputCoords2(inInfo, outShape, outTexShape);
+    res += getSamplerAtOutputCoords(inInfo, outShape, outTexShape);
     // res += getOutputSamplingSnippet(outShape, outTexShape);
   }
 
@@ -399,66 +382,7 @@ function getSamplerFromInInfo(inInfo: InputInfo): string {
   `;
 }
 
-export function getSamplerAtOutputCoords(
-    inputInfo: InputInfo, outShape: number[], outTexShape: number[]) {
-  const texName = inputInfo.name;
-  const texFuncSnippet = texName.charAt(0).toUpperCase() + texName.slice(1);
-  const funcName = 'get' + texFuncSnippet + 'AtOutCoords';
-  console.log('getSamplerAtOutputCoords funcName= ' + funcName);
-  // const outTexShape = outShapeInfo.texShape;
-  const inTexShape = inputInfo.shapeInfo.texShape;
-  const inRank = inputInfo.shapeInfo.logicalShape.length;
-  const outRank = outShape.length;  // outShapeInfo.logicalShape.length;
-
-  if (!inputInfo.shapeInfo.isUniform && inRank === outRank &&
-      inputInfo.shapeInfo.flatOffset == null &&
-      util.arraysEqual(inTexShape, outTexShape)) {
-    return `
-    float ${funcName}() {
-      // return sampleTexture(${texName}, resultUV);
-      // TODO(texture): this maybe wrong when gl_GlobalInvocationID has z index.
-      ivec2 resultUV = ivec2(gl_GlobalInvocationID.yx);
-      return imageLoad(${texName}, ivec2(resultUV.x, resultUV.y)).r;
-    }
-  `;
-  }
-
-  const type = getCoordsDataType(outRank);
-  const broadcastDims =
-      getBroadcastDims(inputInfo.shapeInfo.logicalShape, outShape);
-  const rankDiff = outRank - inRank;
-  let coordsSnippet: string;
-  const fields = ['x', 'y', 'z', 'w', 'u', 'v'];
-
-  if (inRank === 0) {
-    coordsSnippet = '';
-  } else if (outRank < 2 && broadcastDims.length >= 1) {
-    coordsSnippet = 'coords = 0;';
-  } else {
-    coordsSnippet =
-        broadcastDims.map(d => `coords.${fields[d + rankDiff]} = 0;`)
-            .join('\n');
-  }
-  let unpackedCoordsSnippet = '';
-  if (outRank < 2 && inRank > 0) {
-    unpackedCoordsSnippet = 'coords';
-  } else {
-    unpackedCoordsSnippet = inputInfo.shapeInfo.logicalShape
-                                .map((s, i) => `coords.${fields[i + rankDiff]}`)
-                                .join(', ');
-  }
-
-  return `
-  float ${funcName}() {
-    ${type} coords = getOutputCoords();
-    ${coordsSnippet}
-    return get${texFuncSnippet}(${unpackedCoordsSnippet});
-  }
-`;
-}
-
-
-export function getSamplerAtOutputCoords2(
+function getSamplerAtOutputCoords(
     inInfo: InputInfo, outShape: number[], outTexShape: number[]): string {
   const texName = inInfo.name;
   const texFuncSnippet = texName.charAt(0).toUpperCase() + texName.slice(1);
@@ -522,31 +446,7 @@ export function getSamplerAtOutputCoords2(
       unpackedCoordsSnippet = 'coords';
     }
   }
-  /*
-  if (inInfo.useTexture) {
-    const texNumR = outTexShape[0];
-    const texNumC = outTexShape[1];
-    return `
-    float ${funcName}() {
-      ${type} coords = getOutputCoords();
-      ${coordsSnippet}
-      int index = getFlatIndex(${unpackedCoordsSnippet}, ${
-        getShapeCoords(inInfo.shape)});
-      ivec2 uv = uvFromFlat(${texNumR}, ${texNumC}, index);
-      return imageLoad(${texName}, ivec2(coords.x, coords.y)).r;
-    }
 
-    float ${funcName}(${type} coords) {
-      ${coordsSnippet}
-      int index = getFlatIndex(${unpackedCoordsSnippet}, ${
-        getShapeCoords(inInfo.shape)});
-      ivec2 uv = uvFromFlat(${texNumR}, ${texNumC}, index);
-      return imageLoad(${texName}, ivec2(uv.x, uv.y)).r;
-      //return imageLoad(${texName}, ivec2(index, 0)).r;
-    }
-  `;
-  }
-  */
   if (outRank == 4)
     return `
     float ${funcName}() {
@@ -722,8 +622,8 @@ export function generateGetOutputCoords(
 }
 
 /**
- * Derives logical coordinates from a flat index. Performs integer division with
- * each stride and decrements the index until the index equals the final
+ * Derives logical coordinates from a flat index. Performs integer division
+ * with each stride and decrements the index until the index equals the final
  * dimension coordinate.
  */
 function generateGetCoordsFromFlatIndex(shape: number[]): string {
@@ -822,25 +722,6 @@ export function getSampler2D(inputInfo: InputInfo): string {
   `;
 }
 
-export function getSamplerCommon(inputInfo: InputInfo): string {
-  const texShape = inputInfo.shapeInfo.texShape;
-  const texNumR = texShape[0];
-  const texNumC = texShape[1];
-
-  console.warn(' texNumR = ' + texNumR);
-  // console.warn(' stride0 = ' + stride0);
-  console.warn(' texNumC = ' + texNumC);
-  // console.warn(' stride1 = ' + stride1);
-
-
-  return `
-    ivec2 getUVFromFlat(int flatIndex) {
-      // Explicitly use integer operations as dot() only works on floats.
-      ivec2 uv = uvFromFlat(${texNumC}, ${texNumR}, flatIndex);
-      return  uv;
-    } `;
-}
-
 export function getSampler3D(inputInfo: InputInfo): string {
   const shape = inputInfo.shapeInfo.logicalShape;
   const texName = inputInfo.name;
@@ -887,10 +768,6 @@ export function getSampler3D(inputInfo: InputInfo): string {
     // texR is used directly as physical (no risk of float16 overflow).
     return `
     float ${funcName}(int row, int col, int depth) {
-      //int texR = int(dot(vec2(row, col), vec2(${shape[1]}, 1)));
-      // int texC = int(depth);
-      // int texC = col%2;
-      // TODO(texture): handle this for squeezed and 2D, and 3D.
       int texR = int(dot(vec2(row, col), vec2(${inputInfo.shape[1]}, 1)));
       int texC = depth;
       return imageLoad(${texName}, ivec2(texC,texR)).r;
@@ -916,17 +793,12 @@ export function getSampler4D(inputInfo: InputInfo): string {
   const stride0 = shape[1] * stride1;
 
   const {newShape, keptDims} = util.squeezeShape(shape);
-  console.log(' texName ' + texName);
-  console.log(' shape =' + shape);
-  console.log(' newShape =' + newShape);
 
   if (newShape.length < shape.length) {
     const newInputInfo = squeezeInputInfo(inputInfo, newShape);
     const params = ['row', 'col', 'depth', 'depth2'];
     return `
-      ${
-        getSamplerFromInInfo2(
-            newInputInfo)} // this may call into getSampler2D or getSampler3D;
+      ${getSamplerFromInInfo2(newInputInfo)}
       float ${funcName}(int row, int col, int depth, int depth2) {
         return ${funcName}(${getSqueezedParams(params, keptDims)});
       }
@@ -1031,17 +903,17 @@ export function getOutput3DCoords(
       shader_util.getLogicalCoordinatesFromFlatIndex(['r', 'c', 'd'], shape);
 
   return `
-ivec3 getOutputCoords() {
-  ivec2 resTexRC = ivec2(gl_GlobalInvocationID.yx);
-  /*
-  ivec2 resTexRC = ivec2(resultUV.yx *
-                         vec2(${texShape[0]}, ${texShape[1]}));
-  */
-  int index = resTexRC.x * ${texShape[1]} + resTexRC.y;
-  ${coordsFromIndexSnippet}
-  return ivec3(r, c, d);
-}
-`;
+    ivec3 getOutputCoords() {
+    ivec2 resTexRC = ivec2(gl_GlobalInvocationID.yx);
+    /*
+    ivec2 resTexRC = ivec2(resultUV.yx *
+                            vec2(${texShape[0]}, ${texShape[1]}));
+    */
+    int index = resTexRC.x * ${texShape[1]} + resTexRC.y;
+    ${coordsFromIndexSnippet}
+    return ivec3(r, c, d);
+    }
+  `;
 }
 
 function getOutput4DCoords(
@@ -1060,8 +932,6 @@ function getOutput4DCoords(
     int index = resTexRC.x * ${texShape[1]} + resTexRC.y;
     ${coordsFromIndexSnippet}
     return ivec4(r, c, d, d2);
-    //TODO(texture)
-    //return ivec4(0, 0, 0, 0);
   }
 `;
 }

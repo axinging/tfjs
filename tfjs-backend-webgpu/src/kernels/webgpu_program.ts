@@ -94,11 +94,10 @@ export const compileProgram =
 
 export const compileProgramTexture =
     (glslang: Glslang, device: GPUDevice, program: WebGPUProgram,
-     inputsData: shader_preprocessor_texture.InputInfo[], output: TensorInfo,
+     inputsData: shader_preprocessor_texture.InputInfo[],
      outShapeInfo?: shader_preprocessor_texture.ShapeInfo): WebGPUBinary => {
-      const outputData = {dtype: output.dtype, shape: output.shape};
       const source = shader_preprocessor_texture.makeShader(
-          inputsData, outputData, outShapeInfo, program);
+          inputsData, outShapeInfo, program);
       const result = glslang.compileGLSLZeroCopy(source, 'compute', false);
       if (result.data.length === 0) {
         throw new Error('Shader compilation failed');
