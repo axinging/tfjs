@@ -191,10 +191,12 @@ export function getTextureShapeFromLogicalShape(
     // they are from adjacent pairs of rows/cols within the same batch. So if a
     // tensor has 3 rows, we pretend it has 4 rows in order to account for the
     // fact that the texels containing the third row are half empty.
+    /*
     logShape = logShape.map(
         (d, i) => i >= logShape.length - 2 ?
             util.nearestLargerEven(logShape[i]) :
             logShape[i]);
+     */
 
     // Packed texture height is at least 2 (the channel height of a single
     // texel).

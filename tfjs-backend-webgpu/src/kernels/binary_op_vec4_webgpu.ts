@@ -36,7 +36,7 @@ export class BinaryOpVec4Program implements WebGPUProgram {
 
   constructor(op: string, aShape: number[], bShape: number[]) {
     // TODO(jiajia.qin@intel.com): Heuristically select a good work group size.
-    const workGroupSizeX = 128;
+    const workGroupSizeX = 32;
     this.workGroupSize = [workGroupSizeX, 1, 1];
     this.outputShape = backend_util.assertAndGetBroadcastShape(aShape, bShape);
     this.dispatchLayout = flatDispatchLayout(this.outputShape);
