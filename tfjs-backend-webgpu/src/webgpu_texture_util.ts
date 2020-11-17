@@ -200,7 +200,7 @@ export function getTextureShapeFromLogicalShape(
     // texel).
     // TODO(texture).
     if (logShape.length === 1) {
-      logShape = [PACKED_RGBA_WIDTH, logShape[0]];
+      logShape = [1, logShape[0]];
     }
   }
 

@@ -895,8 +895,8 @@ function getPackedSampler1D(inputInfo: InputInfo): string {
   const funcName = 'get' + texName.charAt(0).toUpperCase() + texName.slice(1);
   const texShape = inputInfo.shapeInfo.texShape;
   const packedTexShape = [
-    Math.ceil(texShape[0] / PACKED_RGBA_WIDTH),
-    Math.ceil(texShape[1] / PACKED_RGBA_HEIGHT)
+    Math.ceil(texShape[0] / PACKED_RGBA_HEIGHT),
+    Math.ceil(texShape[1] / PACKED_RGBA_WIDTH)
   ];
 
   return `
@@ -1131,8 +1131,8 @@ function getPackedSamplerND(inputInfo: InputInfo): string {
 function setPackedSampler1D(
     shape: number[], texShape: [number, number]): string {
   const packedTexShape = [
-    Math.ceil(texShape[0] / PACKED_RGBA_WIDTH),
-    Math.ceil(texShape[1] / PACKED_RGBA_HEIGHT)
+    Math.ceil(texShape[0] / PACKED_RGBA_HEIGHT),
+    Math.ceil(texShape[1] / PACKED_RGBA_WIDTH)
   ];
 
   return `
@@ -1284,14 +1284,14 @@ function getOutput2DCoords(
 function getOutputPacked1DCoords(
     shape: [number], texShape: [number, number]): string {
   const packedTexShape = [
-    Math.ceil(texShape[0] / PACKED_RGBA_WIDTH),
-    Math.ceil(texShape[1] / PACKED_RGBA_HEIGHT)
+    Math.ceil(texShape[0] / PACKED_RGBA_HEIGHT),
+    Math.ceil(texShape[1] / PACKED_RGBA_WIDTH)
   ];
   if (packedTexShape[0] === 1) {
     return `
       int getOutputCoords() {
         ivec2 resultUV = ivec2(gl_GlobalInvocationID.xy);
-        return ${PACKED_RGBA_WIDTH} * int(resultUV.x * ${packedTexShape[1]}.0);
+        return ${PACKED_RGBA_HEIGHT} * int(resultUV.y);
       }
     `;
   }
@@ -1300,7 +1300,7 @@ function getOutputPacked1DCoords(
     return `
       int getOutputCoords() {
         ivec2 resultUV = ivec2(gl_GlobalInvocationID.xy);
-        return ${PACKED_RGBA_WIDTH} * int(resultUV.y * ${packedTexShape[0]}.0);
+        return ${PACKED_RGBA_WIDTH} * int(resultUV.x);
       }
     `;
   }
