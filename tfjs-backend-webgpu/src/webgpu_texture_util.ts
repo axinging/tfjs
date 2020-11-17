@@ -171,8 +171,8 @@ export function getPackedMatrixTextureShapeWidthHeight(
     // return [Math.max(1, Math.ceil(rows)), Math.max(1, Math.ceil(columns /
     // 4))];
     return [
-      Math.max(1, Math.ceil(rows / PACKED_RGBA_WIDTH)),
-      Math.max(1, Math.ceil(columns / PACKED_RGBA_HEIGHT))
+      Math.max(1, Math.ceil(columns / PACKED_RGBA_WIDTH)),
+      Math.max(1, Math.ceil(rows / PACKED_RGBA_HEIGHT))
     ];
   else if (format == 'rgba8uint')
     return [rows, columns];

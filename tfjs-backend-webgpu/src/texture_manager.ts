@@ -81,7 +81,7 @@ export class TextureManager {
   public removeTexturePadding(
       textureDataWithPadding: Float32Array, width: number, height: number) {
     const [widthTex, heightTex] =
-        getPackedMatrixTextureShapeWidthHeight(width, height, this.format);
+        getPackedMatrixTextureShapeWidthHeight(height, width, this.format);
     const bytesPerRow = this.getBytesPerRow(widthTex);
     console.warn(
         'in remove: widthTex =' + widthTex + ',heightTex = ' + heightTex);
@@ -101,7 +101,7 @@ export class TextureManager {
 
   public getBufferSize(width: number, height: number) {
     const [widthTex, heightTex] =
-        getPackedMatrixTextureShapeWidthHeight(width, height, this.format);
+        getPackedMatrixTextureShapeWidthHeight(height, width, this.format);
 
     const bytesPerRow = this.getBytesPerRow(widthTex);
     return bytesPerRow * heightTex;
@@ -111,7 +111,7 @@ export class TextureManager {
       queue: GPUQueue, texture: GPUTexture, data: BackendValues, width: number,
       height: number) {
     const [widthTex, heightTex] =
-        getPackedMatrixTextureShapeWidthHeight(width, height, this.format);
+        getPackedMatrixTextureShapeWidthHeight(height, width, this.format);
 
     const bytesPerRow = this.getBytesPerRow(widthTex);
 
@@ -143,7 +143,7 @@ export class TextureManager {
     });
 
     const [widthTex, heightTex] =
-        getPackedMatrixTextureShapeWidthHeight(width, height, this.format);
+        getPackedMatrixTextureShapeWidthHeight(height, width, this.format);
 
 
     console.log(
@@ -191,7 +191,7 @@ export class TextureManager {
       return newTexture;
     }
     const [widthTex, heightTex] =
-        getPackedMatrixTextureShapeWidthHeight(width, height, texFormat);
+        getPackedMatrixTextureShapeWidthHeight(height, width, texFormat);
 
     this.numBytesAllocated += width * height * this.kBytesPerTexel;
     const newTexture = this.device.createTexture({

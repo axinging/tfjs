@@ -319,8 +319,10 @@ export class WebGPUBackend extends KernelBackend {
     const encoder = this.device.createCommandEncoder();
     const [width1, height1] =
         webgpu_texture_util.getPackedMatrixTextureShapeWidthHeight(
-            width, height, this.format);
-    console.log('getTextureData width1 = ' + width1 + ', height1=' + height1+ ", bytesPerRow="+bytesPerRow);
+            height, width, this.format);
+    console.log(
+        'getTextureData width1 = ' + width1 + ', height1=' + height1 +
+        ', bytesPerRow=' + bytesPerRow);
     console.log('getTextureData width = ' + width + ', height=' + height);
 
     encoder.copyTextureToBuffer(
@@ -569,7 +571,7 @@ export class WebGPUBackend extends KernelBackend {
     var outShapeInfo: ShapeInfo;
     if (this.useTexture) {
       this.uploadTextureToGPU(output.dataId);
-	  const useVec4 = this.format == 'rgba32float' ? true : false;
+      const useVec4 = this.format == 'rgba32float' ? true : false;
       const [height, width] =
           webgpu_texture_util.getTextureShapeFromLogicalShape(
               output.shape, useVec4);
