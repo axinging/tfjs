@@ -417,8 +417,13 @@ function setPackedSampler2D(
   if (texShape != null && util.arraysEqual(shape, texShape)) {
     return `
       void setOutput(int row, int col, vec4 value) {
-        ivec2 uv = ivec2(col, row);
+        ivec2 uv = ivec2(row, col);
         imageStore(result, ivec2(uv.y, uv.x), value);
+      }
+	    void setOutput(vec4 value) {
+        ${type} coords = getOutputCoords();
+        //${coordsSnippet}
+        setOutput(${unpackedCoordsSnippet}, value);
       }
     `;
   }
@@ -1320,7 +1325,9 @@ function getOutputPacked2DCoords(
     Math.ceil(texShape[0] / PACKED_RGBA_WIDTH),
     Math.ceil(texShape[1] / PACKED_RGBA_HEIGHT)
   ];
+  /*
   if (util.arraysEqual(shape, texShape)) {
+    console.error("This may fail case tensor2d 2x2 add!");
     return `
       ivec2 getOutputCoords() {
         ivec2 resultUV = ivec2(gl_GlobalInvocationID.xy);
@@ -1329,6 +1336,7 @@ function getOutputPacked2DCoords(
       }
     `;
   }
+  */
 
   // texels needed to accommodate a logical row
   const texelsInLogicalRow = Math.ceil(shape[1] / PACKED_RGBA_HEIGHT);
@@ -1580,6 +1588,7 @@ export function getPackedSamplerAtOutputCoords(
   vec4 ${funcName}() {
     ${type} coords = getOutputCoords();
     ${coordsSnippet}
+    //vec4 outputValue = getB(coords.x);
     vec4 outputValue = get${texFuncSnippet}(${unpackedCoordsSnippet});
     ${output}
   }

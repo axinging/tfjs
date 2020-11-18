@@ -602,6 +602,21 @@ describeWebGPU('webgputextureconv', () => {
   });
 });
 
+describeWebGPU('webgputexturebroadcast', () => {
+  it('texturergba32fbroadcastadd A + B broadcast 2D + 1D', async () => {
+    const a = tf.tensor2d([1, 2, -3, -4], [2, 2]);
+    // const b = tf.tensor1d([1, 2]);
+    const b = tf.tensor2d([1, 2,1,2],[2,2]);
+
+    const result = tf.add(a, b);
+
+    expect(result.shape).toEqual([2, 2]);
+    const expected = [2, 4, -2, -2];
+
+    expectArraysClose(await result.data(), expected);
+  });
+
+});
 describeWebGPU('webgputextureadd', () => {
   it('texturergba32fadd1d', async () => {
     const x =
