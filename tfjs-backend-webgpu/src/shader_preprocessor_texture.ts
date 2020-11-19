@@ -1561,8 +1561,9 @@ export function getPackedSamplerAtOutputCoords(
   `;
   } else if (isInputScalar && !isOutputScalar) {
     if (outRank === 1) {
+      console.warn('TODO(texture): this may be wrong');
       output = `
-      return vec4(outputValue.x, outputValue.x, 0., 0.);
+      return vec4(outputValue.x, outputValue.x, outputValue.x, outputValue.x);
     `;
     } else {
       output = `

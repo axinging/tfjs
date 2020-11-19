@@ -669,6 +669,18 @@ describeWebGPU('webgputexturebroadcast', () => {
     ]);
   });
 });
+
+describeWebGPU('webgputexturescalar', () => {
+  it('texturergba32faddscalar c + A', async () => {
+    const c = tf.scalar(5);
+    const a = tf.tensor1d([1, 2, 3]);
+
+    const result = tf.add(c, a);
+
+    expectArraysClose(await result.data(), [6, 7, 8]);
+  });
+});
+
 describeWebGPU('webgputextureadd', () => {
   it('texturergba32fadd1d', async () => {
     const x =
