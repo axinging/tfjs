@@ -175,9 +175,9 @@ export function getPackedMatrixTextureShapeWidthHeight(
       Math.max(1, Math.ceil(rows / PACKED_RGBA_HEIGHT))
     ];
   else if (format == 'rgba8uint')
-    return [rows, columns];
+    return [columns, rows];
   else
-    return [rows, columns];
+    return [columns, rows];
 }
 
 export function getTextureShapeFromLogicalShape(
@@ -191,6 +191,7 @@ export function getTextureShapeFromLogicalShape(
     // they are from adjacent pairs of rows/cols within the same batch. So if a
     // tensor has 3 rows, we pretend it has 4 rows in order to account for the
     // fact that the texels containing the third row are half empty.
+    // TODO(texture): temporary comment out this for 4x1 packed mode.
     /*
     logShape = logShape.map(
         (d, i) => i >= logShape.length - 2 ?

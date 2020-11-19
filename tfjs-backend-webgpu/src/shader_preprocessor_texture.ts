@@ -16,7 +16,6 @@
  */
 
 import {backend_util, DataType, util} from '@tensorflow/tfjs-core';
-// const {getBroadcastDims} = backend_util;
 
 import * as shader_util from './shader_compiler_util';
 import {symbolicallyComputeStrides} from './shader_util';
@@ -429,8 +428,8 @@ function setPackedSampler2D(
   }
 
   const packedTexShape = [
-    Math.ceil(texShape[0] / PACKED_RGBA_WIDTH),
-    Math.ceil(texShape[1] / PACKED_RGBA_HEIGHT)
+    Math.ceil(texShape[0] / PACKED_RGBA_HEIGHT),
+    Math.ceil(texShape[1] / PACKED_RGBA_WIDTH)
   ];
   const valuesPerRow = Math.ceil(shape[1] / PACKED_RGBA_WIDTH);
 
@@ -871,8 +870,8 @@ function getPackedSampler2D(inputInfo: InputInfo): string {
   }
 
   const packedTexShape = [
-    Math.ceil(texShape[0] / PACKED_RGBA_WIDTH),
-    Math.ceil(texShape[1] / PACKED_RGBA_HEIGHT)
+    Math.ceil(texShape[0] / PACKED_RGBA_HEIGHT),
+    Math.ceil(texShape[1] / PACKED_RGBA_WIDTH)
   ];
   const valuesPerRow = Math.ceil(shape[1] / PACKED_RGBA_WIDTH);
 
@@ -1322,8 +1321,8 @@ function getOutputPacked1DCoords(
 function getOutputPacked2DCoords(
     shape: [number, number], texShape: [number, number]): string {
   const packedTexShape = [
-    Math.ceil(texShape[0] / PACKED_RGBA_WIDTH),
-    Math.ceil(texShape[1] / PACKED_RGBA_HEIGHT)
+    Math.ceil(texShape[0] / PACKED_RGBA_HEIGHT),
+    Math.ceil(texShape[1] / PACKED_RGBA_WIDTH)
   ];
   /*
   if (util.arraysEqual(shape, texShape)) {
@@ -1339,7 +1338,7 @@ function getOutputPacked2DCoords(
   */
 
   // texels needed to accommodate a logical row
-  const texelsInLogicalRow = Math.ceil(shape[1] / PACKED_RGBA_HEIGHT);
+  const texelsInLogicalRow = Math.ceil(shape[1] / PACKED_RGBA_WIDTH);
 
   /**
    * getOutputCoords
