@@ -603,6 +603,48 @@ describeWebGPU('webgputextureconv', () => {
 });
 
 describeWebGPU('webgputexturebroadcast', () => {
+  it('texturergba32fbroadcastadd2d1 2D+2D broadcast each with 1 dim',
+     async () => {
+       const a = tf.tensor2d([1, 2, 5], [1, 3]);
+       const b = tf.tensor2d([7, 3], [2, 1]);
+       const res = tf.add(a, b);
+       expect(res.shape).toEqual([2, 3]);
+       // 8,9,8,4,5,4
+       expectArraysClose(await res.data(), [8, 9, 12, 4, 5, 8]);
+     });
+
+  it('texturergba32fbroadcastadd2d2 2D+2D broadcast each with 1 dim',
+     async () => {
+       const a = tf.tensor2d([1, 2, 5], [1, 3]);
+       const b = tf.tensor2d([7, 3, 7, 3, 7, 3], [2, 3]);
+       const res = tf.add(a, b);
+       console.log(await res.data());
+       expect(res.shape).toEqual([2, 3]);
+       // 8,5,8,4,9,4
+       expectArraysClose(await res.data(), [8, 5, 12, 4, 9, 8]);
+     });
+
+  it('texturergba32fbroadcastadd2da3 2D+2D broadcast each with 1 dim',
+     async () => {
+       const a = tf.tensor2d([1, 2, 5, 1, 2, 5], [2, 3]);
+       const b = tf.tensor2d([7, 3], [2, 1]);
+       const res = tf.add(a, b);
+       console.log(await res.data());
+       expect(res.shape).toEqual([2, 3]);
+       //[8, 9, 5, 4, 5, 5]
+       expectArraysClose(await res.data(), [8, 9, 12, 4, 5, 8]);
+     });
+
+  it('texturergba32fbroadcastadd2da4 2D+2D broadcast each with 1 dim',
+     async () => {
+       const a = tf.tensor2d([1, 2, 5, 1], [2, 2]);
+       const b = tf.tensor2d([7, 3], [2, 1]);
+       const res = tf.add(a, b);
+       console.log(await res.data());
+       expect(res.shape).toEqual([2, 2]);
+       expectArraysClose(await res.data(), [8, 9, 8, 4]);
+     });
+
   it('texturergba32fbroadcastadd1 A + B broadcast 2D + 1D', async () => {
     const a = tf.tensor2d([1, 2, -3, -4], [2, 2]);
     const b = tf.tensor1d([1, 2]);

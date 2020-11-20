@@ -858,12 +858,13 @@ function getPackedSampler2D(inputInfo: InputInfo): string {
 
   // const texNumR = texShape[0];
   // const texNumC = texShape[1];
-  console.log('getPackedSampler2D shape=' + shape + ', texShape =' + texShape);
+  console.log(
+      'texName = ' + texName + ', getPackedSampler2D shape=' + shape +
+      ', texShape =' + texShape);
   if (texShape != null && util.arraysEqual(shape, texShape)) {
     return `
       vec4 ${funcName}(int row, int col) {
         ivec2 uv = ivec2(col, row);
-
         return imageLoad(${texName}, uv);
       }
     `;
@@ -1577,10 +1578,12 @@ export function getPackedSamplerAtOutputCoords(
     if (broadcastDims.indexOf(rows) > -1 && broadcastDims.indexOf(cols) > -1) {
       output = `return vec4(outputValue.x);`;
     } else if (broadcastDims.indexOf(rows) > -1) {
+      /*
       output = `return vec4(outputValue.x, outputValue.y, ` +
           `outputValue.x, outputValue.y);`;
+      */
     } else if (broadcastDims.indexOf(cols) > -1) {
-      output = `return vec4(outputValue.xx, outputValue.zz);`;
+      output = `return vec4(outputValue.xx, outputValue.xx);`;
     }
   }
 
