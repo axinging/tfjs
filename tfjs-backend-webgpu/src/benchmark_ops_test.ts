@@ -29,6 +29,211 @@ function createFloat32Array(w: number, h: number) {
   return matrix;
 }
 describeWebGPU('webgputextureconv2dvec4', () => {
+
+  it('rgba32fconv4d1441 x=[1,4,4,1] f=[3,3,1,1] s=[2,2] d=1 p=same', async () => {
+    const inputDepth = 1;
+    const xSize = 4;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 1;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [1, 1];
+
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, 1]);
+    expectArraysClose(
+        await result.data(), new Float32Array([8,11,19,23,36,28,19,16,29,47,28,10,19,22,27,13
+        ]));
+  });
+
+  it('rgba32fconv4d1444_3341 x=[1,4,4,4] f=[3,3,4,1] s=[1,1] d=1 p=same', async () => {
+    const inputDepth = 4;
+    const xSize = 4;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 1;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [1, 1];
+
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, outputDepth]);
+    expectArraysClose(
+        await result.data(), new Float32Array([54,67,78,85,104,147,107,68,117,167,147,70,53,91,115,75
+        ]));
+  });
+
+  it('rgba32fconv4d1444_3344 x=[1,4,4,4] f=[3,3,4,4] s=[1,1] d=1 p=same', async () => {
+    const inputDepth = 4;
+    const xSize = 4;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [1, 1];
+
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, outputDepth]);
+    expectArraysClose(
+        await result.data(), new Float32Array([
+
+          41,50,69,68,93,67,71,100,112,107,62,67,70,82,74,51,86,104,112,90,113,127,161,160,113,111,129,162,107,77,67,87,118,115,107,89,133,168,173,143,113,127,161,160,75,69,83,107,87,53,49,80,129,116,83,75,110,118,106,69,50,69,68,62
+        ]));
+  });
+
+
+  it('rgba32fconv4d1443 x=[1,4,4,3] f=[3,3,3,4] s=[1,1] d=1 p=same', async () => {
+    const inputDepth = 3;
+    const xSize = 4;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [1, 1];
+
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, outputDepth]);
+    expectArraysClose(
+        await result.data(), new Float32Array([
+          53,35,42,39,59,74,74,69,54,58,62,86,52,56,50,44,87,63,59,75,115,97,114,91,97,90,108,111,63,72,66,70,75,87,69,71,123,99,95,126,115,97,114,91,59,64,79,69,46,61,61,36,67,74,61,78,83,79,55,76,42,39,51,53
+        ]));
+  });
+
+  it('rgba32fconv4d1443all1 x=[1,4,4,3] f=[3,3,3,4] s=[1,1] d=1 p=same', async () => {
+    const inputDepth = 3;
+    const xSize = 4;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [1, 1];
+
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(1);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, outputDepth]);
+    expectArraysClose(
+        await result.data(), new Float32Array([
+          22,22,22,22,35,35,35,35,34,34,34,34,24,24,24,24,36,36,36,36,52,52,52,52,53,53,53,53,34,34,34,34,37,37,37,37,56,56,56,56,52,52,52,52,35,35,35,35,25,25,25,25,37,37,37,37,36,36,36,36,22,22,22,22
+        ]));
+  });
+
+
+  it('rgba32fconv4d1883 x=[1,8,8,3] f=[3,3,3,4] s=[2,2] d=1 p=same', async () => {
+    const inputDepth = 3;
+    const xSize = 8;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [2, 2];
+
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    expect(result.shape).toEqual([1, 4, 4, 4]);
+    expectArraysClose(
+        await result.data(), new Float32Array([
+          104, 125, 126, 102, 133, 126, 104, 57,  137, 102, 57,  112, 64,
+          40,  76,  92,  116, 53,  110, 142, 50,  104, 133, 137, 104, 125,
+          126, 102, 83,  88,  78,  33,  133, 126, 104, 57,  137, 102, 57,
+          112, 116, 53,  110, 142, 37,  76,  100, 99,  33,  68,  83,  88,
+          70,  83,  76,  64,  92,  88,  64,  40,  51,  44,  27,  50
+        ]));
+  });
+
+
   it('rgba32fconv4d1884', async () => {
     const inputDepth = 4;
     const xSize = 8;
