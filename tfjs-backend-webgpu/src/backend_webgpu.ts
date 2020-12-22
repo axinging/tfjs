@@ -49,6 +49,8 @@ import {SliceProgram} from './kernels/slice_webgpu';
 import {StridedSliceProgram} from './kernels/strided_slice_webgpu';
 import {TransposeSharedProgram} from './kernels/transpose_shared_webgpu';
 import {TransposeProgram} from './kernels/transpose_webgpu';
+import * as unary_op_vec4 from './kernels/unary_op_vec4_webgpu';
+import {UnaryOpVec4Program} from './kernels/unary_op_vec4_webgpu';
 import * as unary_op from './kernels/unary_op_webgpu';
 import {UnaryOpProgram} from './kernels/unary_op_webgpu';
 import * as webgpu_program from './kernels/webgpu_program';
@@ -1145,8 +1147,15 @@ export class WebGPUBackend extends KernelBackend {
   }
 
   relu<T extends Tensor>(x: T): T {
-    const program = new UnaryOpProgram(x.shape, unary_op.RELU);
-    return this.compileAndRun(program, [x]);
+    let program: UnaryOpProgram|UnaryOpVec4Program;
+    if (this.usePackedTexture) {
+      program = new UnaryOpVec4Program(
+          x.shape, unary_op_vec4.RELU, this.usePackedTexture);
+      return this.compileAndRun(program, [x]);
+    } else {
+      program = new UnaryOpProgram(x.shape, unary_op.RELU);
+      return this.compileAndRun(program, [x]);
+    }
   }
 
   relu6<T extends Tensor>(x: T): T {
