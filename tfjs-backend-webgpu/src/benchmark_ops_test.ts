@@ -140,6 +140,12 @@ describeWebGPU('Ops benchmarks', () => {
     await time(() => tf.add(a, b));
   });
 
+  it('relu', async () => {
+    const a = tf.randomNormal([1, 65, 65, 256]);
+
+    await time(() => tf.relu(a), null, false, 10, 50);
+  });
+
   it('clip', async () => {
     const a = tf.randomNormal([1, 65, 65, 256]);
 

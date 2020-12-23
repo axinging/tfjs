@@ -26,6 +26,12 @@ describeWithFlags('relu', ALL_ENVS, () => {
     expectArraysClose(await result.data(), [1, 0, 0, 3, 0]);
   });
 
+  it('basic vec4', async () => {
+    const a = tf.tensor1d([1, -2, 0, 3, -0.1, 0.1, -0.9, 3]);
+    const result = tf.relu(a);
+    expectArraysClose(await result.data(), [1, 0, 0, 3, 0, 0.1, 0, 3]);
+  });
+
   it('5D', async () => {
     const a = tf.tensor5d([1, -2, 5, -3], [1, 2, 2, 1, 1]);
     const result = tf.relu(a);
