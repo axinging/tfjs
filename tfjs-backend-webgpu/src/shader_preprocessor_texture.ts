@@ -1059,32 +1059,46 @@ function getPackedSamplerND(inputInfo: InputInfo): string {
   const texName = inputInfo.name;
   const funcName = 'get' + texName.charAt(0).toUpperCase() + texName.slice(1);
   const texShape = inputInfo.shapeInfo.texShape;
-  const packedTexShape = [
-    Math.ceil(texShape[0] / PACKED_RGBA_HEIGHT),
-    Math.ceil(texShape[1] / PACKED_RGBA_WIDTH)
-  ];
+//  const packedTexShape = [
+//    Math.ceil(texShape[0] / PACKED_RGBA_HEIGHT),
+//    Math.ceil(texShape[1] / PACKED_RGBA_WIDTH)
+//  ];
   //[Math.ceil(texShape[0] / 2), Math.ceil(texShape[1] / 2)];
   // console.log();
-  const texNumC = packedTexShape[1];
+//  const texNumC = packedTexShape[1];
   // const texNumC = packedTexShape[1];
 
-  const valuesPerRow = Math.ceil(shape[rank - 1] / PACKED_RGBA_WIDTH);
+  const valuesPerRow = shape[rank - 1];
   let texelsInBatch =
-      valuesPerRow * Math.ceil(shape[rank - 2] / PACKED_RGBA_HEIGHT);
+      valuesPerRow * shape[rank - 2];
   let params = `int b, int row, int col`;
-  let index = `b * ${texelsInBatch} + (row / ${PACKED_RGBA_HEIGHT}) * ${
-      valuesPerRow} + (col / ${PACKED_RGBA_WIDTH})`;
+  let index = `b * ${texelsInBatch} + row * ${
+      valuesPerRow} + col`;
   for (let b = 2; b < rank - 1; b++) {
     params = `int b${b}, ` + params;
     texelsInBatch *= shape[rank - b - 1];
     index = `b${b} * ${texelsInBatch} + ` + index;
   }
   return `
+    vec4 ${funcName}(int index) {
+      int texR = index / ${texShape[1]};
+      int texC = index - texR * ${texShape[1]};
+      vec4 resData = imageLoad(${texName}, ivec2(texC / ${PACKED_RGBA_WIDTH},texR));
+      if (texC % ${PACKED_RGBA_WIDTH} == 1)
+      {
+        resData = vec4(resData.yzw, 0);
+      } else if (texC % ${PACKED_RGBA_WIDTH} == 2)
+      {
+        resData = vec4(resData.zw, 0, 0);
+      } else if (texC % ${PACKED_RGBA_WIDTH} == 3)
+      {
+        resData = vec4(resData.w, 0, 0, 0);
+      }
+      return resData;
+    }
     vec4 ${funcName}(${params}) {
       int index = ${index};
-      int texR = index / ${texNumC};
-      int texC = index - texR * ${texNumC};
-      return imageLoad(${texName}, ivec2(texC,texR));
+      return ${funcName}(index);
     }
   `;
 }
