@@ -28,6 +28,7 @@ import {BinaryOpProgram} from './kernels/binary_op_webgpu';
 import {BinaryOpType, getBinaryOpString, getBinaryProgram} from './kernels/binary_ops';
 import {ClipProgram} from './kernels/clip_webgpu';
 import {ConcatProgram} from './kernels/concat_webgpu';
+import {Conv2DMMVec4Size4Program} from './kernels/conv2d_mm_vec4_size4_webgpu';
 import {Conv2DMMVec4Program} from './kernels/conv2d_mm_vec4_webgpu';
 import {Conv2DMMProgram} from './kernels/conv2d_mm_webgpu';
 import {Conv2DNaiveProgram} from './kernels/conv2d_naive_webgpu';
@@ -336,7 +337,6 @@ export class WebGPUBackend extends KernelBackend {
           staging, this.textureManager.getBufferSize(width, height),
           GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
     }
-    console.warn('Read back values=' + new Float32Array(values));
 
     const result = this.textureManager.removeTexturePadding(
         new Float32Array(values), width, height);
@@ -508,7 +508,6 @@ export class WebGPUBackend extends KernelBackend {
         info.bufferInfo.texShape[1], info.bufferInfo.texShape[0], this.format,
         usage);
     if (info.values) {
-      console.warn('Upload: ' + info.values);
       this.textureManager.writeTextureWithCopy(
           this.device, info.bufferInfo.texture, info.values,
           info.bufferInfo.texShape[1], info.bufferInfo.texShape[0]);
@@ -859,7 +858,8 @@ export class WebGPUBackend extends KernelBackend {
     const dataId = this.write(null /*values*/, convInfo.outShape, x.dtype);
     const output =
         engine().makeTensorFromDataId(dataId, convInfo.outShape, x.dtype, this);
-    let program: Conv2DMMProgram|Conv2DNaiveProgram|Conv2DMMVec4Program;
+    let program: Conv2DMMProgram|Conv2DNaiveProgram|Conv2DMMVec4Program|
+        Conv2DMMVec4Size4Program;
 
     const workPerThread = env().get('WEBGPU_CONV2D_WORK_PER_THREAD') as number;
     if (workPerThread === -1) {
@@ -872,10 +872,13 @@ export class WebGPUBackend extends KernelBackend {
         // will run idle. So temporarily, use 64 as the threshold.
         convInfo.inChannels % 4 === 0 && convInfo.outChannels % 4 === 0 &&
         convInfo.outChannels >= 4) {
-      program = new Conv2DMMVec4Program(convInfo, this.usePackedTexture);
+      program = new Conv2DMMVec4Size4Program(convInfo, this.usePackedTexture);
     } else {
+      /*
       program = new Conv2DMMProgram(
           convInfo, workPerThread, false, null, false, this.useTexture);
+      */
+      program = new Conv2DMMVec4Program(convInfo, this.usePackedTexture);
     }
 
     const pad = [convInfo.padInfo.top, convInfo.padInfo.left];

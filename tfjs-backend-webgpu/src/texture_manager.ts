@@ -91,7 +91,6 @@ export class TextureManager {
         textureData[dst] = textureDataWithPadding[src];
       }
     }
-    console.warn('in removeTexturePadding textureData=' + textureData);
     return textureData;
   }
 
@@ -138,12 +137,15 @@ export class TextureManager {
         getPackedMatrixTextureShapeWidthHeight(height, width, this.format);
 
     const bytesPerRow = this.getBytesPerRow(widthTex);
-
-    const matrixDataWithAlignment = this.addTexturePadding(
-        matrixData as Float32Array, width, height, bytesPerRow);
-
-    new Float32Array(src.getMappedRange()).set(matrixDataWithAlignment);
-    src.unmap();
+    if (widthTex % 16 == 0 && this.format == 'rgba32float') {
+      new Float32Array(src.getMappedRange()).set(matrixData as Float32Array);
+      src.unmap();
+    } else {
+      const matrixDataWithAlignment = this.addTexturePadding(
+          matrixData as Float32Array, width, height, bytesPerRow);
+      new Float32Array(src.getMappedRange()).set(matrixDataWithAlignment);
+      src.unmap();
+    }
 
     const encoder = this.device.createCommandEncoder();
 

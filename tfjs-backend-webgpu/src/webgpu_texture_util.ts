@@ -183,6 +183,8 @@ export function getPackedMatrixTextureShapeWidthHeight(
 export function getTextureShapeFromLogicalShape(
     logShape: number[], isPacked = false): [number, number] {
   // TODO(texture): Change WEBGL_MAX_TEXTURE_SIZE to WEBGPU_MAX_TEXTURE_SIZE.
+  // https://source.chromium.org/chromium/chromium/src/+/master:third_party/dawn/src/common/Constants.h;l=61
+  // kMaxTextureSize = 8192u;
   let maxTexSize = env().getNumber('WEBGL_MAX_TEXTURE_SIZE');
   if (isPacked) {
     maxTexSize = maxTexSize * 2;
@@ -209,10 +211,11 @@ export function getTextureShapeFromLogicalShape(
   }
 
   // If logical shape is 2, we don't squeeze, since we want to match physical.
-  if (logShape.length !== 2) {
-    const squeezeResult = util.squeezeShape(logShape);
-    logShape = squeezeResult.newShape;
-  }
+  // TODO(texture): this idea is from Jiajia.
+  // if (logShape.length !== 2) {
+  //  const squeezeResult = util.squeezeShape(logShape);
+  //  logShape = squeezeResult.newShape;
+  // }
 
   let size = util.sizeFromShape(logShape);
   if (logShape.length <= 1 && size <= maxTexSize) {
@@ -293,7 +296,6 @@ export function getDispatchLayoutFromLogicalShape(
   }
 
   let size = util.sizeFromShape(logShape);
-  console.log();
   if (logShape.length <= 1 && size <= maxTexSize) {
     return {x: [0]};
   } else if (
