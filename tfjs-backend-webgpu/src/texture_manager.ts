@@ -91,7 +91,6 @@ export class TextureManager {
         textureData[dst] = textureDataWithPadding[src];
       }
     }
-    console.warn('in removeTexturePadding textureData=' + textureData);
     return textureData;
   }
 

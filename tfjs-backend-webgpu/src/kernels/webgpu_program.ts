@@ -99,7 +99,7 @@ export const compileProgramTexture =
      outShapeInfo?: shader_preprocessor_texture.ShapeInfo): WebGPUBinary => {
       const source = shader_preprocessor_texture.makeShader(
           inputsData, outShapeInfo, program, format);
-      console.warn(source);
+      // console.warn(source);
       const result = glslang.compileGLSLZeroCopy(source, 'compute', false);
       if (result.data.length === 0) {
         throw new Error('Shader compilation failed');

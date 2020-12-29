@@ -336,7 +336,7 @@ export class WebGPUBackend extends KernelBackend {
           staging, this.textureManager.getBufferSize(width, height),
           GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
     }
-    console.warn('Read back values=' + new Float32Array(values));
+    // console.warn('Read back values=' + new Float32Array(values));
 
     const result = this.textureManager.removeTexturePadding(
         new Float32Array(values), width, height);
@@ -508,7 +508,7 @@ export class WebGPUBackend extends KernelBackend {
         info.bufferInfo.texShape[1], info.bufferInfo.texShape[0], this.format,
         usage);
     if (info.values) {
-      console.warn('Upload: ' + info.values);
+      // console.warn('Upload: ' + info.values);
       this.textureManager.writeTextureWithCopy(
           this.device, info.bufferInfo.texture, info.values,
           info.bufferInfo.texShape[1], info.bufferInfo.texShape[0]);
@@ -874,8 +874,11 @@ export class WebGPUBackend extends KernelBackend {
         convInfo.outChannels >= 4) {
       program = new Conv2DMMVec4Program(convInfo, this.usePackedTexture);
     } else {
+      /*
       program = new Conv2DMMProgram(
           convInfo, workPerThread, false, null, false, this.useTexture);
+      */
+      program = new Conv2DMMVec4Program(convInfo, this.usePackedTexture);
     }
 
     const pad = [convInfo.padInfo.top, convInfo.padInfo.left];
