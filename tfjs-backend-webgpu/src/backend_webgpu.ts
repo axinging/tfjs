@@ -1332,8 +1332,9 @@ export class WebGPUBackend extends KernelBackend {
           a.shape, output.shape as [number, number, number], transposeA,
           transposeB);
     } else if (
-        a.shape[2] % 4 === 0 && b.shape[2] % 4 === 0 && !transposeA &&
-        !transposeB) {
+        (a.shape[2] % 4 === 0 && b.shape[2] % 4 === 0 && !transposeA &&
+         !transposeB) ||
+        this.usePackedTexture) {
       // TODO: Currently we need to make sure that a.shape[2] and b.shape[2] are
       // divisible by 4 since we use vec4 to get data. In future, we can remove
       // this limitation by insert 0 to pack data.
