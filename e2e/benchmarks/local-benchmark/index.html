@@ -162,10 +162,10 @@ limitations under the License.
       backend: 'wasm',
       kernelTiming: 'aggregate',
       inputSize: 0,
+      modelArchitecture: '',
       modelType: '',
       modelUrl: '',
       isModelChanged: false,
-      isInputSizeChanged: false,
       flags: {},
       isFlagChanged: false,
       isModelLoaded: false,
@@ -218,8 +218,10 @@ limitations under the License.
       appendRow(parameterTable, 'numRuns', state.numRuns);
       appendRow(parameterTable, 'backend', state.backend);
       appendRow(parameterTable, 'kernelTiming', state.kernelTiming);
-      if (isInputSizeSupported())
+      if (isModelParameterSupported('supportedInput'))
         appendRow(parameterTable, 'inputSize', state.inputSize);
+      if (isModelParameterSupported('supportedArchitecture'))
+        appendRow(parameterTable, 'modelArchitecture', state.modelArchitecture);
     }
 
     async function setupKernelTable() {
@@ -349,7 +351,6 @@ limitations under the License.
       const benchmark = benchmarks[state.benchmark];
       state.modelType = benchmark['type'];
       state.isModelChanged = false; // used to clean the performance history
-      state.isInputSizeChanged = false;
 
       if (benchmark['load'] == null) {
         throw new Error(`Please provide a load method for '${state.benchmark}' model.`);
@@ -357,8 +358,8 @@ limitations under the License.
 
       await showMsg('Loading the model');
       let start = performance.now();
-      const inputSize = parseInt(state.inputSize);
-      model = await benchmark.load(inputSize);
+      const inputSize = parseFloat(state.inputSize);
+      model = await benchmark.load(inputSize, state.modelArchitecture);
       state.inputs = [];
       if (model.inputs) {
         // construct the input state for the model
@@ -504,7 +505,7 @@ limitations under the License.
     }
 
     async function loadModel() {
-      if (state.isModelChanged || !state.isModelLoaded || state.isFlagChanged || state.isInputSizeChanged) {
+      if (state.isModelChanged || !state.isModelLoaded || state.isFlagChanged) {
         await loadModelAndRecordTime();
         state.isModelLoaded = true;
         const needInputShape = await showInputs();
@@ -544,12 +545,12 @@ limitations under the License.
       await measureAveragePredictTime();
     }
 
-    function isInputSizeSupported() {
+    function isModelParameterSupported(parameter) {
       const benchmark = benchmarks[state.benchmark];
-      if (benchmark['supportedInput'] != null) {
+      if (benchmark[parameter] != null) {
         return true;
       }
-      // Model doesn't support input size.
+      // Model doesn't support this parameter.
       return false;
     }
 
@@ -563,6 +564,7 @@ limitations under the License.
       let modelUrlController = null;
       let modelParameterFolder = null;
       let inputSizeController = null;
+      let modelArchitectureController = null;
       modelFolder.add(state, 'benchmark', Object.keys(benchmarks)).name('models').onChange(async model => {
         await showMsg(null);
         state.isModelChanged = true;
@@ -571,20 +573,42 @@ limitations under the License.
           modelParameterFolder.remove(inputSizeController);
           inputSizeController = null;
         }
+        if (modelArchitectureController !== null) {
+          modelParameterFolder.remove(modelArchitectureController);
+          modelArchitectureController = null;
+        }
+
         const benchmark = benchmarks[state.benchmark];
-        if (isInputSizeSupported()) {
+        if (isModelParameterSupported('supportedInput')) {
           inputSizeController = modelParameterFolder.add(state, 'inputSize', benchmark['supportedInput']).name('inputSizes').onChange(async inputSize => {
             state.inputSize = inputSize;
-            state.isInputSizeChanged = true;
+            state.isModelChanged = true;
           });
           // Current use first value as default.
           const defaultInputSize = benchmark['supportedInput'][0];
           inputSizeController.setValue(defaultInputSize);
           state.inputSize = defaultInputSize;
-          modelParameterFolder.open();
         } else {
           // Model doesn't support input size.
           state.inputSize = 0;
+        }
+
+        if (isModelParameterSupported('supportedArchitecture')) {
+          modelArchitectureController = modelParameterFolder.add(state, 'modelArchitecture', benchmark['supportedArchitecture']).name('modelArchitectures').onChange(async modelArchitecture => {
+            state.modelArchitecture = modelArchitecture;
+            state.isModelChanged = true;
+          });
+          // Current use first value as default.
+          const defaultModelArchitecture = benchmark['supportedArchitecture'][0];
+          modelArchitectureController.setValue(defaultModelArchitecture);
+          state.modelArchitecture = defaultModelArchitecture;
+          modelParameterFolder.open();
+        } else {
+          // Model doesn't support input size.
+          state.modelArchitecture = '';
+        }
+        if (isModelParameterSupported('supportedInput') || isModelParameterSupported('supportedArchitecture')) {
+          modelParameterFolder.open();
         }
 
         if (model === 'custom') {
@@ -610,8 +634,11 @@ limitations under the License.
       parameterFolder.open();
 
       modelParameterFolder = gui.addFolder('Model Parameters');
-      if (isInputSizeSupported()) {
+      if (isModelParameterSupported('supportedInput')) {
         inputSizeController = modelParameterFolder.add(state, 'inputSize', []);
+      }
+      if (isModelParameterSupported('supportedArchitecture')) {
+        modelArchitectureController = modelParameterFolder.add(state, 'modelArchitecture', []);
       }
       modelParameterFolder.open();
 

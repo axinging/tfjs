@@ -197,11 +197,25 @@ const benchmarks = {
   'posenet': {
     type: 'GraphModel',
     supportedInput: [257, 512, 1024],
-    load: async (inputResolution = 257) => {
-      const mobileNetConfig = {
-        inputResolution: inputResolution,
-      };
-      const model = await posenet.load(mobileNetConfig);
+    supportedArchitecture: ['MobileNetV1', 'ResNet50'],
+    load: async (inputResolution = 257, modelArchitecture = 'MobileNetV1') => {
+      let config = null;
+      if (modelArchitecture === 'MobileNetV1') {
+        config = {
+          architecture: modelArchitecture,
+          outputStride: 16,
+          multiplier: 0.75,
+          inputResolution: inputResolution,
+        };
+      } else if (modelArchitecture === 'ResNet50') {
+        config = {
+          architecture: modelArchitecture,
+          outputStride: 32,
+          quantBytes: 2,
+          inputResolution: inputResolution,
+        };
+      }
+      const model = await posenet.load(config);
       model.image = await loadImage('tennis_standing.jpg');
       return model;
     },
@@ -213,14 +227,37 @@ const benchmarks = {
   },
   'bodypix': {
     type: 'GraphModel',
-    load: async () => {
-      const model = await bodyPix.load();
+    // The ratio to the default camera size [640, 480].
+    supportedInput: [0.5, 0.75, 1.0, 2.0],
+    supportedArchitecture: ['MobileNetV1', 'ResNet50'],
+    load: async (inputResolution = 257, modelArchitecture = 'MobileNetV1') => {
+      let config = null;
+      if (modelArchitecture === 'MobileNetV1') {
+        config = {
+          architecture: 'MobileNetV1',
+          outputStride: 16,
+          quantBytes: 4,
+          multiplier: 0.75,
+          inputResolution: inputResolution,
+        };
+      } else if (modelArchitecture === 'ResNet50') {
+        config = {
+          architecture: 'ResNet50',
+          outputStride: 32,
+          quantBytes: 4,
+          inputResolution: inputResolution,
+        };
+      }
+      const model = await bodyPix.load(config);
       model.image = await loadImage('tennis_standing.jpg');
       return model;
     },
-    predictFunc: () => {
+    predictFunc: (internalResolution = 0.5) => {
       return async model => {
-        return model.segmentPerson(model.image);
+        const PERSON_INFERENCE_CONFIG = {
+          internalResolution: internalResolution,
+        };
+        return model.segmentPerson(model.image, PERSON_INFERENCE_CONFIG);
       };
     }
   },
