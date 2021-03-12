@@ -28,10 +28,12 @@ export class PadProgram implements WebGPUProgram {
   dispatchLayout: {x: number[]};
   dispatch: [number, number, number];
   variableNames = ['x'];
-  uniforms = 'float constantValue;';
+  // TODO(xing.xu@intel.com): this is uploaded as Int32.
+  uniforms = 'int constantValue;';
   workPerThread = 8;
   workGroupSize: [number, number, number] = [16, 1, 1];
   xShape: number[];
+  needsShapesUniforms = false;
   paddings: Array<[number, number]>;
 
   constructor(xShape: number[], paddings: Array<[number, number]>) {

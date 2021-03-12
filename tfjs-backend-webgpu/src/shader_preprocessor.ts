@@ -68,6 +68,7 @@ interface ProgramParams {
   workGroupSize?: [number, number, number];
   variableNames: string[];
   uniforms?: string;
+  needsShapesUniforms?: boolean;
   isVec4?: boolean;
   getUserCode: () => string;
 }
@@ -107,10 +108,20 @@ export function makeShader(
   });
 
   let uniformDeclaration = '';
+  if (program.needsShapesUniforms) {
+    program.variableNames.forEach((x, i) => {
+      uniformDeclaration += `${getCoordsDataType(inputInfo[i].shape.length)} ${
+          x.charAt(0).toLowerCase() + x.slice(1)}Shape; `;
+    });
+    uniformDeclaration +=
+        `${getCoordsDataType(outputData.shape.length)} outShape; `;
+  }
 
   if (program.uniforms) {
     uniformDeclaration += program.uniforms;
+  }
 
+  if (program.uniforms || program.needsShapesUniforms) {
     prefixSnippets.push(`
     layout(std140, set = 0, binding = ${
         1 + program.variableNames.length}) uniform Uniforms {
@@ -118,13 +129,16 @@ export function makeShader(
     };
   `);
   }
+
   const [getOutputCoords, dispatchLayoutRank] =
       generateGetOutputCoords(outputData.shape, program.dispatchLayout);
   const getCoords = generateGetCoordsFromFlatIndex(outputData.shape);
   const sources = [
     SHADER_PREFIX, prefixSnippets.join('\n'), SAMPLING_SNIPPETS,
     getOutputCoords, getCoords,
-    getSetOutputSnippet(outputData.shape, outputData.dtype, program.isVec4)
+    getSetOutputSnippet(
+        outputData.shape, outputData.dtype, program.needsShapesUniforms,
+        program.isVec4)
   ];
 
   if (dispatchLayoutRank === outputData.shape.length) {
@@ -192,7 +206,8 @@ const SAMPLING_SNIPPETS = `
 `;
 
 function getSetOutputSnippet(
-    outShape: number[], outBufferType: DataType, isVec4: boolean): string {
+    outShape: number[], outBufferType: DataType, needsShapesUniforms: boolean,
+    isVec4: boolean): string {
   const outRank = outShape.length;
   const glslType = mapToGlslTypes(outBufferType, isVec4);
   let snippet;
@@ -222,6 +237,11 @@ function getSetOutputSnippet(
     }`;
   }
 
+  if (!needsShapesUniforms) {
+    return snippet;
+  }
+
+
   if (outRank >= 2) {
     const dims = ['d0', 'd1', 'd2', 'd3'].slice(0, outRank);
     const type = getCoordsDataType(outRank);
@@ -229,26 +249,22 @@ function getSetOutputSnippet(
     if (isVec4) {
       snippet += `
       void setOutput(${dims.map(d => `int ${d}`).join(', ')}, vec4 value) {
-        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), ${
-          getShapeCoords(outShape)});
+        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), outShape);
         setOutput(flatIndex / 4, value);
       }
       void setOutput(${dims.map(d => `int ${d}`).join(', ')}, ivec4 value) {
-        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), ${
-          getShapeCoords(outShape)});
+        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), outShape);
         setOutput(flatIndex / 4, value);
       }
     `;
     } else {
       snippet += `
       void setOutput(${dims.map(d => `int ${d}`).join(', ')}, float value) {
-        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), ${
-          getShapeCoords(outShape)});
+        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), outShape);
         setOutput(flatIndex, value);
       }
       void setOutput(${dims.map(d => `int ${d}`).join(', ')}, int value) {
-        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), ${
-          getShapeCoords(outShape)});
+        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), outShape);
         setOutput(flatIndex, value);
       }
     `;
