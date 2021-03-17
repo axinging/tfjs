@@ -44,7 +44,7 @@ export class PadProgram implements WebGPUProgram {
 
     this.xShape = xShape;
     this.paddings = paddings;
-    this.shaderKey = `pad_${paddings}`;
+    this.shaderKey = `pad_${paddings}_${xShape}`;
   }
 
   getUserCode(): string {
