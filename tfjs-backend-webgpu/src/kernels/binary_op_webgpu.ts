@@ -17,7 +17,6 @@
 
 import {backend_util, util} from '@tensorflow/tfjs-core';
 import {getCoordsDataType} from '../shader_preprocessor';
-
 import {computeDispatch, flatDispatchLayout} from '../webgpu_util';
 
 import {WebGPUProgram} from './webgpu_program';
@@ -48,7 +47,7 @@ export class BinaryOpProgram implements WebGPUProgram {
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
-    this.shaderKey = `binary_${op}`;
+    this.shaderKey = `binary_${op}_${aShape}_${bShape}_${this.outputShape}`;
     this.op = op;
   }
 
