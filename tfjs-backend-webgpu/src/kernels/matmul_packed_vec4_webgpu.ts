@@ -226,7 +226,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
       }
 
       vec4 mm_readB(int row, int col) {
-        const batchBSize = bShape[1] * bShape[2] / ${vecSize};
+        int batchBSize = bShape[1] * bShape[2] / ${vecSize};
         return ${sampleB};
       }
 
