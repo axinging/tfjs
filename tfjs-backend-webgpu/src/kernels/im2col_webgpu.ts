@@ -45,8 +45,8 @@ export class Im2ColProgram implements WebGPUProgram {
         [this.workPerThread, 1, 1]);
     this.inputShape = inputShape;
     this.convInfo = convInfo;
-    this.shaderKey =
-        `im2col${convInfo.inShape}${convInfo.filterShape}${convInfo.outShape}`;
+    this.shaderKey = `im2col${convInfo.inShape}${this.convInfo.filterWidth}${
+        convInfo.outShape}`;
   }
 
   getUserCode(): string {
