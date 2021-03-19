@@ -43,7 +43,7 @@ export class BinaryOpVec4Program implements WebGPUProgram {
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
     this.op = op;
-    this.shaderKey = `binaryVec4_${op}_${aShape}_${bShape}_${this.outputShape}`;
+    this.shaderKey = `binaryVec4_${op}_${this.outputShape}`;
   }
 
   getUserCode(): string {

@@ -46,8 +46,8 @@ export class BinaryOpComplexProgram implements WebGPUProgram {
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize);
 
-    this.shaderKey =
-        `binaryOpComplex_${op}_${aShape}_${bShape}_${this.outputShape}`;
+    this.shaderKey = `binaryOpComplex_${op}_${aShape.length}_${bShape.length}_${
+        this.outputShape}`;
     this.op = op;
   }
 
