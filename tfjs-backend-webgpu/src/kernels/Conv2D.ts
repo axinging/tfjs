@@ -18,6 +18,7 @@
 import {backend_util, Conv2D, Conv2DAttrs, Conv2DInputs, env, KernelConfig, KernelFunc} from '@tensorflow/tfjs-core';
 
 import {WebGPUBackend} from '../backend_webgpu';
+import {NumberOrArrayToDataView} from '../webgpu_util';
 
 import {conv2dByMatMul, conv2dWithIm2Col} from './Conv2D_impl';
 import {Conv2DMMVec4Program} from './conv2d_mm_vec4_webgpu';
@@ -70,9 +71,10 @@ export function conv2d(
     convInfo.strideHeight, convInfo.strideWidth, convInfo.dilationHeight,
     convInfo.dilationWidth
   ];
-  const uniformData = new Int32Array(dimensions);
+  const uniformDataView = NumberOrArrayToDataView(dimensions);
 
-  return backend.runWebGPUProgram(program, [x, filter], x.dtype, uniformData);
+  return backend.runWebGPUProgram(
+      program, [x, filter], x.dtype, uniformDataView);
 }
 
 export const conv2DConfig: KernelConfig = {

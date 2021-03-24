@@ -18,18 +18,20 @@
 import {KernelConfig, KernelFunc, PadV2, PadV2Attrs, PadV2Inputs, TensorInfo} from '@tensorflow/tfjs-core';
 
 import {WebGPUBackend} from '../backend_webgpu';
+import {NumberOrArrayToDataView} from '../webgpu_util';
 import {PadProgram} from './pad_webgpu';
 
 export const padV2 =
-    (args: {inputs: PadV2Inputs, backend: WebGPUBackend, attrs: PadV2Attrs}):
-        TensorInfo => {
-          const {inputs, backend, attrs} = args;
-          const {x} = inputs;
-          const {paddings, constantValue} = attrs;
-          const uniformData = new Float32Array([constantValue]);
-          const program = new PadProgram(x.shape, paddings);
-          return backend.runWebGPUProgram(program, [x], x.dtype, uniformData);
-        };
+    (args: {inputs: PadV2Inputs,
+            backend: WebGPUBackend,
+            attrs: PadV2Attrs}): TensorInfo => {
+      const {inputs, backend, attrs} = args;
+      const {x} = inputs;
+      const {paddings, constantValue} = attrs;
+      const uniformDataView = NumberOrArrayToDataView(constantValue, 'float32');
+      const program = new PadProgram(x.shape, paddings);
+      return backend.runWebGPUProgram(program, [x], x.dtype, uniformDataView);
+    };
 
 export const padV2Config: KernelConfig = {
   kernelName: PadV2,

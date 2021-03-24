@@ -18,6 +18,7 @@
 import {backend_util, DepthwiseConv2dNative, DepthwiseConv2dNativeAttrs, DepthwiseConv2dNativeInputs, KernelConfig, KernelFunc} from '@tensorflow/tfjs-core';
 
 import {WebGPUBackend} from '../backend_webgpu';
+import {NumberOrArrayToDataView} from '../webgpu_util';
 import {DepthwiseConv2DProgram} from './depthwise_conv2d_webgpu';
 
 export function depthwiseConv2dNative(args: {
@@ -46,8 +47,9 @@ export function depthwiseConv2dNative(args: {
     convInfo.dilationHeight, convInfo.dilationWidth, convInfo.inHeight,
     convInfo.inWidth
   ];
-  const uniformData = new Int32Array(dimensions);
-  return backend.runWebGPUProgram(program, [x, filter], x.dtype, uniformData);
+  const uniformDataView = NumberOrArrayToDataView(dimensions);
+  return backend.runWebGPUProgram(
+      program, [x, filter], x.dtype, uniformDataView);
 }
 
 export const depthwiseConv2dNativeConfig: KernelConfig = {

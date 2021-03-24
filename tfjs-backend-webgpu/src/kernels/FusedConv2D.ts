@@ -18,6 +18,7 @@
 import {backend_util, env, FusedConv2D, FusedConv2DAttrs, FusedConv2DInputs, KernelConfig, KernelFunc, TensorInfo} from '@tensorflow/tfjs-core';
 
 import {WebGPUBackend} from '../backend_webgpu';
+import {NumberOrArrayToDataView} from '../webgpu_util';
 
 import {conv2dByMatMul} from './Conv2D_impl';
 import {Conv2DMMVec4Program} from './conv2d_mm_vec4_webgpu';
@@ -96,7 +97,7 @@ export function fusedConv2d(args: {
     convInfo.strideHeight, convInfo.strideWidth, convInfo.dilationHeight,
     convInfo.dilationWidth
   ];
-  const uniformData = new Int32Array(dimensions);
+  const uniformDataView = NumberOrArrayToDataView(dimensions);
   const inputVar: TensorInfo[] = [x, filter];
   if (hasBias) {
     inputVar.push(bias);
@@ -104,7 +105,7 @@ export function fusedConv2d(args: {
   if (hasPreluActivationWeights) {
     inputVar.push(preluActivationWeights);
   }
-  return backend.runWebGPUProgram(program, inputVar, x.dtype, uniformData);
+  return backend.runWebGPUProgram(program, inputVar, x.dtype, uniformDataView);
 }
 
 export const fusedConv2DConfig: KernelConfig = {

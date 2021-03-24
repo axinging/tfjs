@@ -18,6 +18,7 @@
 import {ArgMin, ArgMinAttrs, ArgMinInputs, backend_util, KernelConfig, KernelFunc, TensorInfo, util} from '@tensorflow/tfjs-core';
 
 import {WebGPUBackend} from '../backend_webgpu';
+import {NumberOrArrayToDataView} from '../webgpu_util';
 import {ArgMinMaxProgram} from './argminmax_webgpu';
 import {transpose} from './Transpose';
 
@@ -40,8 +41,8 @@ export function argMin(
 
   backend_util.assertAxesAreInnerMostDims('argMin', [axes[0]], $x.shape.length);
   const program = new ArgMinMaxProgram($x.shape, axes[0], 'min');
-  const uniformData = new Int32Array([axes[0]]);
-  const out = backend.runWebGPUProgram(program, [$x], 'int32', uniformData);
+  const uniformDataView = NumberOrArrayToDataView(axes[0]);
+  const out = backend.runWebGPUProgram(program, [$x], 'int32', uniformDataView);
   intermediateTensorInfos.forEach(t => backend.disposeData(t.dataId));
   return out;
 }

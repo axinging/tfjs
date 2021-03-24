@@ -18,6 +18,7 @@
 import {backend_util, FusedDepthwiseConv2D, FusedDepthwiseConv2DAttrs, FusedDepthwiseConv2DInputs, KernelConfig, KernelFunc, TensorInfo, util} from '@tensorflow/tfjs-core';
 
 import {WebGPUBackend} from '../backend_webgpu';
+import {NumberOrArrayToDataView} from '../webgpu_util';
 import {DepthwiseConv2DProgram} from './depthwise_conv2d_webgpu';
 
 export function fusedDepthwiseConv2D(args: {
@@ -66,9 +67,9 @@ export function fusedDepthwiseConv2D(args: {
     convInfo.dilationHeight, convInfo.dilationWidth, convInfo.inHeight,
     convInfo.inWidth
   ];
-  const uniformData = new Int32Array(dimensions);
-  const result =
-      backend.runWebGPUProgram(program, programInputs, 'float32', uniformData);
+  const uniformDataView = NumberOrArrayToDataView(dimensions);
+  const result = backend.runWebGPUProgram(
+      program, programInputs, 'float32', uniformDataView);
 
   return result;
 }
