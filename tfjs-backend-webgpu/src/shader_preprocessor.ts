@@ -119,19 +119,7 @@ export function makeShader(
         `${getCoordsDataType(outputData.shape.length)} outShape; `;
   }
 
-  if (hasFloatProgramUniforms === true) {
-    prefixSnippets.push(`
-      layout(std140, set = 0, binding = ${
-        1 + program.variableNames.length}) uniform Uniforms1 {
-          ${uniformDeclaration}
-      };
-
-      layout(std140, set = 0, binding = ${
-        2 + program.variableNames.length}) uniform Uniforms2 {
-          ${program.uniforms}
-      };
-    `);
-  } else {
+  {
     if (program.uniforms) {
       uniformDeclaration += program.uniforms;
     }
@@ -517,7 +505,9 @@ function generateGetOutputCoords(
     } else {
       let strides;
       if (needsShapesUniforms) {
-        strides = symbolicallyComputeStrides(arr, 'outShape');
+        // strides = symbolicallyComputeStrides(arr, 'outShape');
+        strides =
+            symbolicallyComputeStrides(arr, `${getShapeCoords(outShape)}`);
       } else {
         strides =
             symbolicallyComputeStrides(arr, `${getShapeCoords(outShape)}`);

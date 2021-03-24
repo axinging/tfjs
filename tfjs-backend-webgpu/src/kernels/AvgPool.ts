@@ -17,6 +17,7 @@
 import {AvgPool, AvgPoolAttrs, AvgPoolInputs, backend_util, KernelConfig, KernelFunc, TensorInfo, util} from '@tensorflow/tfjs-core';
 
 import {WebGPUBackend} from '../backend_webgpu';
+import {NumberOrArrayToDataView} from '../webgpu_util';
 
 import {identity} from './Identity';
 import {Pool2DProgram} from './pool2d_webgpu';
@@ -52,8 +53,9 @@ export function avgPool(
     convInfo.effectiveFilterHeight,
     convInfo.effectiveFilterWidth  // Filter dims.
   ];
-  const uniformData = new Int32Array(dimensions);
-  return backend.runWebGPUProgram(program, [x], x.dtype, uniformData);
+
+  const uniformDataView = NumberOrArrayToDataView(dimensions);
+  return backend.runWebGPUProgram(program, [x], x.dtype, uniformDataView);
 }
 
 export const avgPoolConfig: KernelConfig = {

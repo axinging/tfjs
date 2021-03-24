@@ -18,6 +18,7 @@
 import {Fill, FillAttrs, KernelConfig, KernelFunc, TensorInfo, util} from '@tensorflow/tfjs-core';
 
 import {WebGPUBackend} from '../backend_webgpu';
+import {NumberOrArrayToDataView} from '../webgpu_util';
 import {FillProgram} from './fill_webgpu';
 
 export function fill(args: {backend: WebGPUBackend, attrs: FillAttrs}):
@@ -35,8 +36,8 @@ export function fill(args: {backend: WebGPUBackend, attrs: FillAttrs}):
     return backend.makeTensorInfo(shape, dtype, values);
   } else {
     const program = new FillProgram(shape);
-    const uniformData = new Float32Array([value as number]);
-    return backend.runWebGPUProgram(program, [], dtype, uniformData);
+    const uniformDataView = NumberOrArrayToDataView(value as number, 'float32');
+    return backend.runWebGPUProgram(program, [], dtype, uniformDataView);
   }
 }
 

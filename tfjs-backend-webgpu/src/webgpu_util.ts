@@ -152,3 +152,30 @@ export function ArrayBufferToTypedArray(data: ArrayBuffer, dtype: DataType) {
     throw new Error(`Unknown dtype ${dtype}`);
   }
 }
+
+export function NumberOrArrayToDataView(
+    array: number|number[], dtype?: DataType): DataView {
+  let uniformDataView: DataView;
+  if (Array.isArray(array)) {
+    uniformDataView = new DataView(new ArrayBuffer(array.length * 4));
+    if (dtype != 'float32') {
+      for (let i = 0; i < array.length; i++) {
+        uniformDataView.setInt32(i * 4, array[i], true);
+      }
+    } else {
+      for (let i = 0; i < array.length; i++) {
+        uniformDataView.setFloat32(i * 4, array[i], true);
+      }
+    }
+  } else {
+    uniformDataView = new DataView(new ArrayBuffer(4));
+    if (dtype != 'float32') {
+      uniformDataView.setInt32(0, array, true);
+    } else {
+      uniformDataView.setFloat32(0, array, true);
+    }
+  }
+  // TODO: handle the rest type
+
+  return uniformDataView;
+}

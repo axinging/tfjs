@@ -482,21 +482,58 @@ export class WebGPUBackend extends KernelBackend {
     }
   }
 
-  private updateUniforms(
+  public makeUniforms(data: Uint32Array|Int32Array|
+                      Float32Array): GPUBindingResource {
+    const dimensionsBuffer = this.acquireBuffer(
+        data.byteLength, GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM);
+    this.queue.writeBuffer(dimensionsBuffer, 0, data);
+    // console.log('makeUniforms = data.byteLength= ' + data.byteLength);
+
+    return {offset: 0, size: data.byteLength, buffer: dimensionsBuffer};
+  }
+
+  public updateUniforms(
       uniforms: GPUBindingResource[], uniformDataLengths: number[],
       uniformData: Uint32Array|Int32Array|Float32Array) {
+    console.log(
+        'updateUniforms = uniformData.byteLength= ' + uniformData.byteLength);
     uniformDataLengths.push(uniformData.byteLength);
     uniforms.push(this.makeUniforms(uniformData));
   }
 
+  public makeUniformsDataView(data: DataView): GPUBindingResource {
+    const dimensionsBuffer = this.acquireBuffer(
+        data.byteLength, GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM);
+    for (let ii = 0; ii < data.byteLength; ii = ii + 4) {
+      // console.log('makeUniformsDataView: ' + data.getInt32(ii, true));
+    }
+    this.queue.writeBuffer(dimensionsBuffer, 0, data);
+
+    return {offset: 0, size: data.byteLength, buffer: dimensionsBuffer};
+  }
+
+  public updateUniformsDataView(
+      uniforms: GPUBindingResource[], uniformDataLengths: number[],
+      uniformData: DataView) {
+    uniformDataLengths.push(uniformData.byteLength);
+    uniforms.push(this.makeUniformsDataView(uniformData));
+  }
+
+  private AppendDataView(buffer1: ArrayBuffer, buffer2: ArrayBuffer) {
+    var tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
+    tmp.set(new Uint8Array(buffer1), 0);
+    tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
+    return tmp.buffer;
+  };
+
   public runWebGPUProgram(
       program: webgpu_program.WebGPUProgram, inputs: TensorInfo[],
-      outputDtype: DataType,
-      programUniformsData?: Uint32Array|Int32Array|Float32Array): TensorInfo {
+      outputDtype: DataType, programUniformsData?: DataView): TensorInfo {
     const output = this.makeTensorInfo(program.outputShape, outputDtype);
 
     let dimUniformsData: number[] = [];
     const bufferShapes = inputs.concat(output).map(d => d.shape);
+    // TODO: simple this
     const needsShapesUniforms = (program.disableShapesUniforms === undefined) ||
         (program.disableShapesUniforms === false);
     if (needsShapesUniforms) {
@@ -541,30 +578,61 @@ export class WebGPUBackend extends KernelBackend {
       });
     }
 
+    // let dimDataViewBuffer = new Int32Array(dimUniformsData);
+    // let dimDataView = new DataView(dimDataViewBuffer.buffer);
+    let dimDataView = webgpu_util.NumberOrArrayToDataView(dimUniformsData);
+    /*
+    for (let ii = 0; ii < dimUniformsData.length; ii++) {
+      console.log('dimDataView before merge: ' + dimDataView.getInt32(ii * 4));
+    }*/
+
     const uniformDataLengths: number[] = [];
     const uniforms: GPUBindingResource[] = [];
-
+    // let programDataView: DataView = null;
+    let allDataBuffer: ArrayBuffer = null;
+    if (programUniformsData) {
+      // programDataView = new DataView(programUniformsData);
+      allDataBuffer =
+          this.AppendDataView(dimDataView.buffer, programUniformsData.buffer);
+      dimDataView = new DataView(allDataBuffer);
+      // console.log(dimDataView.getInt32(0));  // 1
+      // console.log(dimDataView.getInt32(4));  // 2
+    }
+    /*
     let hasIntProgramUniforms = false;
     let hasFloatProgramUniforms = false;
     if (programUniformsData instanceof Int32Array) {
       hasIntProgramUniforms = true;
       // Merge shape uniform and integer program uniform.
-      dimUniformsData = dimUniformsData.concat(Array.from(programUniformsData));
+      // dimUniformsData =
+      // dimUniformsData.concat(Array.from(programUniformsData));
+      dimDataView = new DataView(programUniformsData);
     } else if (programUniformsData instanceof Float32Array) {
       hasFloatProgramUniforms = true;
     } else if (programUniformsData instanceof Uint32Array) {
       // TODO(xing.xu@intel.com): handle Uint32Array.
       throw new Error('Uint32Array is not supported for program uniform.');
     }
-
-    if (needsShapesUniforms || hasIntProgramUniforms) {
+    */
+    //
+    if (needsShapesUniforms) {
+      // const uniformData = new Int32Array(dimUniformsData);
+      this.updateUniformsDataView(uniforms, uniformDataLengths, dimDataView);
+    }
+    //
+    /*
+    if (needsShapesUniforms) {
       const uniformData = new Int32Array(dimUniformsData);
       this.updateUniforms(uniforms, uniformDataLengths, uniformData);
     }
+    */
+
+    /*
     if (hasFloatProgramUniforms) {
       const uniformData = new Float32Array(programUniformsData);
       this.updateUniforms(uniforms, uniformDataLengths, uniformData);
     }
+    */
 
     const inputsData = inputs.map((input: TensorInfo, i: number) => {
       if (input.dtype === 'complex64') {
@@ -588,8 +656,7 @@ export class WebGPUBackend extends KernelBackend {
     const key = webgpu_program.makeShaderKey(program, bufferTypes);
     const {bindGroupLayout, pipeline} = this.getAndSavePipeline(key, () => {
       return webgpu_program.compileProgram(
-          this.glslang, this.device, program, inputsData, output,
-          hasFloatProgramUniforms);
+          this.glslang, this.device, program, inputsData, output);
     });
 
     const shouldTimeProgram = this.activeTimers != null;
@@ -670,15 +737,6 @@ export class WebGPUBackend extends KernelBackend {
         GPUBufferUsage.COPY_SRC | GPUBufferUsage.QUERY_RESOLVE);
     // Return milliseconds.
     return timeElapsedNanos / 1000000;
-  }
-
-  private makeUniforms(data: Uint32Array|Int32Array|
-                       Float32Array): GPUBindingResource {
-    const dimensionsBuffer = this.acquireBuffer(
-        data.byteLength, GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM);
-    this.queue.writeBuffer(dimensionsBuffer, 0, data);
-
-    return {offset: 0, size: data.byteLength, buffer: dimensionsBuffer};
   }
 
   private getCPUBackend(): KernelBackend|null {
