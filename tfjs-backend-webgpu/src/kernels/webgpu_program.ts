@@ -72,12 +72,12 @@ export const makeBindGroup =
 
 export const compileProgram =
     (glslang: Glslang, device: GPUDevice, program: WebGPUProgram,
-     inputsData: shader_preprocessor.InputInfo[], output: TensorInfo,
-     hasFloatProgramUniforms?: boolean): WebGPUBinary => {
+     inputsData: shader_preprocessor.InputInfo[],
+     output: TensorInfo): WebGPUBinary => {
       const outputData = {dtype: output.dtype, shape: output.shape};
 
-      const source = shader_preprocessor.makeShader(
-          inputsData, outputData, program, hasFloatProgramUniforms);
+      const source =
+          shader_preprocessor.makeShader(inputsData, outputData, program);
       const result = glslang.compileGLSLZeroCopy(source, 'compute', false);
       if (result.data.length === 0) {
         throw new Error('Shader compilation failed');

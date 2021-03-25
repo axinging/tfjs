@@ -81,7 +81,7 @@ export interface InputInfo {
 
 export function makeShader(
     inputInfo: InputInfo[], outputData: {dtype: DataType, shape: number[]},
-    program: ProgramParams, hasFloatProgramUniforms?: boolean): string {
+    program: ProgramParams): string {
   const prefixSnippets: string[] = [];
 
   if (program.workGroupSize != null) {
