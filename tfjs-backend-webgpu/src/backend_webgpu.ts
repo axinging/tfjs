@@ -490,13 +490,6 @@ export class WebGPUBackend extends KernelBackend {
     return {offset: 0, size: data.byteLength, buffer: dimensionsBuffer};
   }
 
-  private updateUniformsDataView(
-      uniforms: GPUBindingResource[], uniformDataLengths: number[],
-      uniformData: DataView) {
-    uniformDataLengths.push(uniformData.byteLength);
-    uniforms.push(this.makeUniformsDataView(uniformData));
-  }
-
   private AppendDataView(buffer1: ArrayBuffer, buffer2: ArrayBuffer) {
     var tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
     tmp.set(new Uint8Array(buffer1), 0);
@@ -559,17 +552,18 @@ export class WebGPUBackend extends KernelBackend {
 
     let dimDataView = webgpu_util.NumberOrArrayToDataView(dimUniformsData);
 
-    const uniformDataLengths: number[] = [];
-    const uniforms: GPUBindingResource[] = [];
+    let uniformDataLength;
+    let uniforms: GPUBindingResource = null;
     let allDataBuffer: ArrayBuffer = null;
     if (programUniformsData) {
       allDataBuffer =
           this.AppendDataView(dimDataView.buffer, programUniformsData.buffer);
       dimDataView = new DataView(allDataBuffer);
     }
-    if (needsShapesUniforms) {
-      this.updateUniformsDataView(uniforms, uniformDataLengths, dimDataView);
+    if (needsShapesUniforms || programUniformsData) {
+      uniforms = this.makeUniformsDataView(dimDataView);
     }
+    uniformDataLength = dimDataView.byteLength;
 
     const inputsData = inputs.map((input: TensorInfo, i: number) => {
       if (input.dtype === 'complex64') {
@@ -627,11 +621,11 @@ export class WebGPUBackend extends KernelBackend {
       this.commandQueueOwnedIds.add(input.dataId);
     });
     this.commandQueueOwnedIds.add(output.dataId);
-    for (let i = 0; i < uniforms.length; i++) {
+    if (uniforms) {
       const uniformInfo = {
-        byteSize: uniformDataLengths[i],
+        byteSize: uniformDataLength,
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
-        buffer: (uniforms[i] as GPUBufferBinding).buffer
+        buffer: (uniforms as GPUBufferBinding).buffer
       };
       this.uniformDisposalQueue.push(uniformInfo);
     }

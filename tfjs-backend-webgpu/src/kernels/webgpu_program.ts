@@ -57,12 +57,10 @@ export interface TensorData {
 export const makeBindGroup =
     (device: GPUDevice, bindGroupLayout: GPUBindGroupLayout,
      inputs: GPUBindingResource[], output: GPUBindingResource,
-     uniforms?: GPUBindingResource[]) => {
+     uniforms?: GPUBindingResource) => {
       const bindings = [output, ...inputs];
       if (uniforms) {
-        uniforms.forEach(uniform => {
-          bindings.push(uniform);
-        });
+        bindings.push(uniforms);
       }
       return device.createBindGroup({
         layout: bindGroupLayout,
