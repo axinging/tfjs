@@ -70,6 +70,7 @@ interface ProgramParams {
   uniforms?: string;
   disableShapesUniforms?: boolean;
   isVec4?: boolean;
+  getSize?: () => number;
   getUserCode: () => string;
 }
 
@@ -116,9 +117,12 @@ export function makeShader(
     });
     uniformDeclaration +=
         `${getCoordsDataType(outputData.shape.length)} outShape; `;
-    // Add strides.
+    // TODO: only length is required. Add strides.
     const strides = util.computeStrides(outputData.shape);
     uniformDeclaration += `${getCoordsDataType(strides.length)} stride1; `;
+    if (program.getSize != null) {
+      uniformDeclaration += `int size; `;
+    }
   }
 
   if (program.uniforms) {
@@ -558,6 +562,7 @@ function generateGetCoordsFromFlatIndex(
     return `int getCoordsFromFlatIndex(int index) {return index; }`;
   }
 
+  // TODO(xing.xu): Only strides length is required.
   const strides = util.computeStrides(shape);
   const dtype = getCoordsDataType(rank);
   const coords: string[] = [];

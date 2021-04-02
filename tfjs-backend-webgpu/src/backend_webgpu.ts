@@ -542,26 +542,37 @@ export class WebGPUBackend extends KernelBackend {
     const output = this.makeTensorInfo(program.outputShape, outputDtype);
 
     let dimUniformsData: {type: string; data: number | number[];}[] = [];
-    const bufferShapes = inputs.concat(output).map(d => d.shape);
-    let bufferShapesWithType = bufferShapes.map(function(d) {
-      return {type: 'int32', data: d};
-    });
-    const needsShapesUniforms = program.disableShapesUniforms !== true;
+    let bufferShapesWithType;
+    let needUniforms = false;
     let uniformsDataView: DataView = null;
-    if (needsShapesUniforms) {
+
+    // Both shape and strides here.
+    if (program.disableShapesUniforms !== true) {
+      const bufferShapes = inputs.concat(output).map(d => d.shape);
+      bufferShapesWithType = bufferShapes.map(function(d) {
+        return {type: 'int32', data: d};
+      });
       const strides = util.computeStrides(output.shape);
 
-      bufferShapes.push(strides);
+      // bufferShapes.push(strides);
       bufferShapesWithType.push({type: 'int32', data: strides});
-      if (programUniforms) {
-        bufferShapesWithType = [...bufferShapesWithType, ...programUniforms];
-      }
+      needUniforms = true;
+    }
 
+    if (program.getSize != null) {
+      bufferShapesWithType.push({type: 'int32', data: [program.getSize()]});
+      needUniforms = true;
+    }
+    if (programUniforms) {
+      bufferShapesWithType = [...bufferShapesWithType, ...programUniforms];
+      needUniforms = true;
+    }
+
+    if (needUniforms) {
       let currentOffset = 0;
       let padding = 0;
       let dataViewIndex = 0;
       bufferShapesWithType.forEach((d, i) => {
-        // Uniforms.
         if (d.data.length === 0) {
           d.data = [1];
         }
@@ -585,9 +596,6 @@ export class WebGPUBackend extends KernelBackend {
           case 4:
             baseAlignment = 4;
             break;
-          case 8:
-            baseAlignment = 4;
-            break;
           default:
             util.assert(false, () => `Unsupported ${d.data.length}D shape`);
         }
@@ -608,7 +616,7 @@ export class WebGPUBackend extends KernelBackend {
     }
 
     let uniforms: GPUBindingResource = null;
-    if (needsShapesUniforms || programUniforms) {
+    if (needUniforms) {
       uniforms = this.makeUniformsDataView(uniformsDataView);
     }
 

@@ -42,6 +42,7 @@ export interface WebGPUProgram {
   // the group.
   workGroupSize?: [number, number, number];
   isVec4?: boolean;
+  getSize?: () => number;
   getUserCode: () => string;
 }
 
