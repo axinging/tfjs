@@ -32,6 +32,7 @@ export class BinaryOpProgram implements WebGPUProgram {
   op: string;
   sizeFit: boolean;
   shapesFit: boolean;
+  size: number;
 
   constructor(op: string, aShape: number[], bShape: number[]) {
     // TODO(jiajia.qin@intel.com): Heuristically select a good work group size.
@@ -39,15 +40,16 @@ export class BinaryOpProgram implements WebGPUProgram {
     this.workGroupSize = [workGroupSizeX, 1, 1];
     this.outputShape = backend_util.assertAndGetBroadcastShape(aShape, bShape);
     this.dispatchLayout = flatDispatchLayout(this.outputShape);
-    const size = util.sizeFromShape(this.outputShape);
-    this.sizeFit = size % workGroupSizeX === 0;
+    this.size = util.sizeFromShape(this.outputShape);
+    this.sizeFit = this.size % workGroupSizeX === 0;
     this.shapesFit = util.arraysEqual(aShape, bShape) && this.sizeFit;
     this.workPerThread = this.sizeFit || this.shapesFit ? 1 : 2;
 
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
-    this.shaderKey = `binary_${op}_${aShape}_${bShape}_${this.outputShape}`;
+    this.shaderKey = `binary_${op}_${aShape}_${bShape}_${this.outputShape}_${
+        this.sizeFit}_${this.shapesFit}`;
     this.op = op;
   }
 
@@ -86,7 +88,6 @@ export class BinaryOpProgram implements WebGPUProgram {
       `;
     } else {
       const type = getCoordsDataType(this.outputShape.length);
-      const size = util.sizeFromShape(this.outputShape);
       userCode = `
       float binaryOperation(float a, float b) {
         ${this.op}
@@ -98,7 +99,7 @@ export class BinaryOpProgram implements WebGPUProgram {
         for(int i = 0; i < ${this.workPerThread}; i++) {
           int flatIndex = index * ${this.workPerThread} + i;
 
-          if(flatIndex < ${size}) {
+          if(flatIndex < size) {
             ${type} coords = getCoordsFromFlatIndex(flatIndex);
 
             float a = getAAtOutCoords(coords);

@@ -30,6 +30,7 @@ export class TransposeProgram implements WebGPUProgram {
   workPerThread = 4;
   workGroupSize: [number, number, number] = [64, 1, 1];
   newDim: number[];
+  size: number;
 
   constructor(aShape: number[], newDim: number[]) {
     const outputShape: number[] = new Array(aShape.length);
@@ -44,11 +45,11 @@ export class TransposeProgram implements WebGPUProgram {
 
     this.newDim = newDim;
     this.shaderKey = `transpose_${newDim}`;
+    this.size = util.sizeFromShape(this.outputShape);
   }
 
   getUserCode(): string {
     const dtype = getCoordsDataType(this.outputShape.length);
-    const size = util.sizeFromShape(this.outputShape);
     const switched = getSwitchedCoords(this.newDim);
 
     const userCode = `
@@ -57,7 +58,7 @@ export class TransposeProgram implements WebGPUProgram {
 
         for(int i = 0; i < ${this.workPerThread}; i++) {
           int flatIndex = index * ${this.workPerThread} + i;
-          if(flatIndex < ${size}) {
+          if(flatIndex < size) {
             ${dtype} resRC = getCoordsFromFlatIndex(flatIndex);
             setOutput(flatIndex, A[getFlatIndex(
               ${dtype}(${switched}), aShape)]);

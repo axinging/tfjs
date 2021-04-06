@@ -31,6 +31,7 @@ export class BinaryOpVec4Program implements WebGPUProgram {
   workGroupSize: [number, number, number];
   isVec4 = true;
   op: string;
+  size: number;
 
   constructor(op: string, aShape: number[], bShape: number[]) {
     // TODO(jiajia.qin@intel.com): Heuristically select a good work group size.
@@ -43,11 +44,11 @@ export class BinaryOpVec4Program implements WebGPUProgram {
         [this.workPerThread, 1, 1]);
     this.op = op;
     this.shaderKey = `binaryVec4_${op}_${this.outputShape}`;
+    this.size = util.sizeFromShape(this.outputShape) / this.workPerThread;
   }
 
   getUserCode(): string {
-    const size = util.sizeFromShape(this.outputShape) / this.workPerThread;
-    const fitShape = size % this.workGroupSize[0] === 0;
+    const fitShape = this.size % this.workGroupSize[0] === 0;
     let userCode: string;
     if (fitShape) {
       userCode = `
@@ -70,7 +71,7 @@ export class BinaryOpVec4Program implements WebGPUProgram {
 
       void main() {
         int index = int(gl_GlobalInvocationID.x);
-        if (index < ${size})
+        if (index < size)
         {
           vec4 a = A[index];
           vec4 b = B[index];

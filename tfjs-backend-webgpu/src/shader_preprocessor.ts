@@ -70,7 +70,7 @@ interface ProgramParams {
   uniforms?: string;
   disableShapesUniforms?: boolean;
   isVec4?: boolean;
-  getSize?: () => number;
+  size?: number;
   getUserCode: () => string;
 }
 
@@ -120,7 +120,7 @@ export function makeShader(
     // TODO: only length is required. Add strides.
     const strides = util.computeStrides(outputData.shape);
     uniformDeclaration += `${getCoordsDataType(strides.length)} stride1; `;
-    if (program.getSize != null) {
+    if (program.size != null) {
       uniformDeclaration += `int size; `;
     }
   }

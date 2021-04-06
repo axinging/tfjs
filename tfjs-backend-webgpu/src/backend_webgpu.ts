@@ -559,8 +559,8 @@ export class WebGPUBackend extends KernelBackend {
       needUniforms = true;
     }
 
-    if (program.getSize != null) {
-      bufferShapesWithType.push({type: 'int32', data: [program.getSize()]});
+    if (program.size != null) {
+      bufferShapesWithType.push({type: 'int32', data: [program.size]});
       needUniforms = true;
     }
     if (programUniforms) {

@@ -40,7 +40,8 @@ export class ResizeBilinearProgram implements WebGPUProgram {
 
     this.alignCorners = alignCorners;
     this.shaderKey = `resizeBilinear_${alignCorners}_${inputShape.length}_${
-        this.outputShape}`;
+        this.outputShape.length}_${this.outputShape[1] > 1}_${
+        this.outputShape[2] > 1}`;
   }
 
   getUserCode(): string {

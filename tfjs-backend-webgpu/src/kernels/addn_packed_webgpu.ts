@@ -30,6 +30,7 @@ export class AddNPackedProgram implements WebGPUProgram {
   variableNames: string[];
   workPerThread = 4;
   workGroupSize: [number, number, number] = [64, 1, 1];
+  size: number;
 
   constructor(shapes: number[][]) {
     this.outputShape = shapes[0];
@@ -39,10 +40,7 @@ export class AddNPackedProgram implements WebGPUProgram {
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
     this.shaderKey = `addN${this.outputShape.length}`;
-  }
-
-  getSize(): number {
-    return util.sizeFromShape(this.outputShape);
+    this.size = util.sizeFromShape(this.outputShape);
   }
 
   getUserCode(): string {
