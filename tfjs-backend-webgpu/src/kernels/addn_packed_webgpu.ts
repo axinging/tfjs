@@ -39,7 +39,7 @@ export class AddNPackedProgram implements WebGPUProgram {
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
-    this.shaderKey = `addN${this.outputShape.length}`;
+    this.shaderKey = 'addN';
     this.size = util.sizeFromShape(this.outputShape);
   }
 

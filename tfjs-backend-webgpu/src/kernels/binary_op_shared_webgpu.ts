@@ -54,8 +54,7 @@ export class BinaryOpSharedProgram implements WebGPUProgram {
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
-    this.shaderKey = `binaryShared_${op}_${aShape.length}_${bShape.length}_${
-        this.outputShape.length}`;
+    this.shaderKey = `binaryShared_${op}`;
     this.useSharedMemoryWithB = useSharedMemoryWithB;
     this.op = op;
     this.size = util.sizeFromShape(this.outputShape);

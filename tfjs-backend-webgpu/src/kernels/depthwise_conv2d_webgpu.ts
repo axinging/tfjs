@@ -58,9 +58,7 @@ export class DepthwiseConv2DProgram implements WebGPUProgram {
     this.hasPreluActivation = hasPreluActivation;
 
     this.shaderKey = `depthwise_${activation}_${
-        this.convInfo.outChannels /
-        this.convInfo.inChannels}_${convInfo.inShape.length}_${
-        convInfo.filterShape.length}_${convInfo.outShape.length}`;
+        this.convInfo.outChannels / this.convInfo.inChannels}`;
   }
 
   getUserCode(): string {

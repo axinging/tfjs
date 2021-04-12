@@ -36,7 +36,7 @@ export class FillProgram implements WebGPUProgram {
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
 
-    this.shaderKey = `fill_${this.outputShape.length}`;
+    this.shaderKey = 'fill';
     this.size = util.sizeFromShape(this.outputShape);
   }
 

@@ -45,8 +45,7 @@ export class Im2ColProgram implements WebGPUProgram {
         [this.workPerThread, 1, 1]);
     this.inputShape = inputShape;
     this.convInfo = convInfo;
-    this.shaderKey = `im2col${convInfo.inShape}${this.convInfo.filterWidth}${
-        convInfo.outShape.length}`;
+    this.shaderKey = `im2col${convInfo.inShape}`;
     this.size = util.sizeFromShape(this.outputShape);
   }
 

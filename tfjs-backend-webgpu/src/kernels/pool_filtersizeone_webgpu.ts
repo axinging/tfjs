@@ -37,8 +37,7 @@ export class PoolWithFilterSizeEqualsOneProgram implements WebGPUProgram {
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize);
 
-    this.shaderKey = `poolWithFilterSizeEqualsOne_${convInfo.inShape.length}_${
-        convInfo.outShape.length}`;
+    this.shaderKey = 'poolWithFilterSizeEqualsOne';
   }
 
   getUserCode(): string {

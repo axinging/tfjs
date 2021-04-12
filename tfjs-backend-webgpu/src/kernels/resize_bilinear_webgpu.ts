@@ -39,9 +39,8 @@ export class ResizeBilinearProgram implements WebGPUProgram {
         this.dispatchLayout, this.outputShape, this.workGroupSize);
 
     this.alignCorners = alignCorners;
-    this.shaderKey = `resizeBilinear_${alignCorners}_${inputShape.length}_${
-        this.outputShape.length}_${this.outputShape[1] > 1}_${
-        this.outputShape[2] > 1}`;
+    this.shaderKey = `resizeBilinear_${alignCorners}_${
+        this.outputShape[1] > 1}_${this.outputShape[2] > 1}`;
   }
 
   getUserCode(): string {

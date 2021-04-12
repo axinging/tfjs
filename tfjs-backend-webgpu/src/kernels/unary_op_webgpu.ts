@@ -87,7 +87,7 @@ export class UnaryOpProgram implements WebGPUProgram {
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
     this.op = op;
-    this.shaderKey = `unary_${op}_${outputShape.length}`;
+    this.shaderKey = `unary_${op}`;
     this.size = util.sizeFromShape(this.outputShape);
   }
 

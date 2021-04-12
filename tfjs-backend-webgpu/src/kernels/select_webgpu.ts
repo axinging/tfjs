@@ -42,7 +42,7 @@ export class SelectProgram implements WebGPUProgram {
 
     this.cRank = cRank;
     this.rank = rank;
-    this.shaderKey = `select_${this.outputShape.length}`;
+    this.shaderKey = 'select';
     this.size = util.sizeFromShape(this.outputShape);
   }
 

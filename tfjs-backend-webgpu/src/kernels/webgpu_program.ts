@@ -15,7 +15,7 @@
  * =============================================================================
  */
 
-import {DataType, Rank, TensorInfo} from '@tensorflow/tfjs-core';
+import {DataType, Rank, ShapeMap, TensorInfo} from '@tensorflow/tfjs-core';
 import {Glslang} from '@webgpu/glslang/dist/web-devel/glslang.onefile';
 
 import * as shader_preprocessor from '../shader_preprocessor';
@@ -93,8 +93,10 @@ export const compileProgram =
     };
 
 export function makeShaderKey<R extends Rank>(
-    program: WebGPUProgram, types: string[]): string {
+    program: WebGPUProgram, shapes: Array<ShapeMap[R]>,
+    types: string[]): string {
   const key = (program.workGroupSize ? program.workGroupSize.join(',') : '') +
-      types.join(',') + program.variableNames.join(',') + program.shaderKey;
+      shapes.map(shape => shape.length).join(',') + types.join(',') +
+      program.variableNames.join(',') + program.shaderKey;
   return key;
 }

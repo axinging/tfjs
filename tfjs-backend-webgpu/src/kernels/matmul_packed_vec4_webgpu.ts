@@ -142,17 +142,12 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
 
     const addBias = bias != null;
     const hasPreluActivationWeights = preluActivationWeights != null;
-    let shapeKey = '';
-    // TODO(xing.xu@intel.com): bias and activation weights require output shape
-    // length in shader key.
     if (addBias) {
       this.variableNames.push('bias');
-      shapeKey += `${bias.shape.length}`;
     }
 
     if (hasPreluActivationWeights) {
       this.variableNames.push('preluActivationWeights');
-      shapeKey += `${preluActivationWeights.shape.length}`;
     }
 
     this.workPerThread = rowPerThread;
@@ -160,8 +155,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     this.addBias = addBias;
     this.activation = activation;
     this.hasPreluActivationWeights = hasPreluActivationWeights;
-    this.shaderKey =
-        `matMulPackedVec4_${rowPerThread}_${activation}_${shapeKey}`;
+    this.shaderKey = `matMulPackedVec4_${rowPerThread}_${activation}`;
   }
 
   getUserCode(): string {

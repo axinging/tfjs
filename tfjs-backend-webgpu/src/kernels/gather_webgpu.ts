@@ -37,7 +37,7 @@ export class GatherProgram implements WebGPUProgram {
     this.dispatchLayout = flatDispatchLayout(this.outputShape);
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize);
-    this.shaderKey = `gather_${this.aShape.length}_${outputShape.length}`;
+    this.shaderKey = `gather`;
     this.size = util.sizeFromShape(this.outputShape);
   }
   getUserCode(): string {

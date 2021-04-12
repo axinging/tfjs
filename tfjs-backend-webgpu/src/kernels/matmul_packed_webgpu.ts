@@ -167,15 +167,12 @@ export class MatMulPackedProgram implements WebGPUProgram {
     }
     const addBias = bias != null;
     const hasPreluActivationWeights = preluActivationWeights != null;
-    let shapeKey = '';
     if (addBias) {
       this.variableNames.push('bias');
-      shapeKey += `${bias.shape.length}`;
     }
 
     if (hasPreluActivationWeights) {
       this.variableNames.push('preluActivationWeights');
-      shapeKey += `${preluActivationWeights.shape.length}`;
     }
 
     this.workPerThread = workPerThread;
@@ -186,7 +183,7 @@ export class MatMulPackedProgram implements WebGPUProgram {
     this.activation = activation;
     this.hasPreluActivationWeights = hasPreluActivationWeights;
     this.shaderKey = `matMulPacked_${this.workPerThread}_${transposeA}_${
-        transposeB}_${activation}_${shapeKey}`;
+        transposeB}_${activation}`;
   }
 
   getUserCode(): string {

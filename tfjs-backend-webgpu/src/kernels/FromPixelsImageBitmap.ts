@@ -44,9 +44,10 @@ export function fromPixelsImageBitmap(args: {
   // to recompile the pipeline to get the correct result.
   // FromPixelsImageBitmap leverages webgpu backend pipeline
   // cache system to avoid useless recompile.
+  const outputShapes = [output.shape];
   const outputTypes = [output.dtype];
-  const key =
-      webgpu_program.makeShaderKey(backend.fromPixelProgram, outputTypes);
+  const key = webgpu_program.makeShaderKey(
+      backend.fromPixelProgram, outputShapes, outputTypes);
 
   const {bindGroupLayout, pipeline} = backend.getAndSavePipeline(key, () => {
     return webgpu_program.compileProgram(

@@ -48,6 +48,7 @@ export class BinaryOpProgram implements WebGPUProgram {
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
+    // TODO(xing.xu): remove shapes.
     this.shaderKey = `binary_${op}_${aShape}_${bShape}_${this.outputShape}_${
         this.sizeFit}_${this.shapesFit}`;
     this.op = op;
