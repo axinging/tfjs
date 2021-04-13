@@ -27,7 +27,6 @@ export class ReduceProgram implements WebGPUProgram {
   dispatchLayout: {x: number[], y: number[]};
   dispatch: [number, number, number];
   workGroupSize: [number, number, number];
-  disableShapesUniforms = true;
   variableNames = ['x'];
   reduceType: 'max'|'mean'|'min'|'prod'|'sum';
   inputShape: number[];

@@ -68,7 +68,6 @@ interface ProgramParams {
   workGroupSize?: [number, number, number];
   variableNames: string[];
   uniforms?: string;
-  disableShapesUniforms?: boolean;
   isVec4?: boolean;
   size?: number;
   getUserCode: () => string;
@@ -82,7 +81,17 @@ export interface InputInfo {
 
 export function makeShader(
     inputInfo: InputInfo[], outputData: {dtype: DataType, shape: number[]},
-    program: ProgramParams): string {
+    program: ProgramParams, isFromPixel = false): string {
+  const outputBufferStr =
+      `    layout(std430, set = 0, binding = 0) writeonly buffer ssbOut {
+      ${mapToGlslTypes(outputData.dtype, program.isVec4)} result[];
+    };`;
+  if (isFromPixel === true) {
+    const getCoords = generateGetCoordsFromFlatIndex(outputData.shape);
+    const sources =
+        [SHADER_PREFIX, outputBufferStr, program.getUserCode(), getCoords];
+    return sources.join('\n');
+  }
   const prefixSnippets: string[] = [];
 
   if (program.workGroupSize != null) {
@@ -108,18 +117,15 @@ export function makeShader(
     `);
   });
 
-  const needsShapesUniforms = program.disableShapesUniforms !== true;
   let uniformDeclaration = '';
-  if (needsShapesUniforms) {
-    program.variableNames.forEach((x, i) => {
-      uniformDeclaration += `${getCoordsDataType(inputInfo[i].shape.length)} ${
-          x.charAt(0).toLowerCase() + x.slice(1)}Shape; `;
-    });
-    uniformDeclaration +=
-        `${getCoordsDataType(outputData.shape.length)} outShape; `;
-    const stridesLength = outputData.shape.length - 1;
-    uniformDeclaration += `${getCoordsDataType(stridesLength)} shapeStride; `;
-  }
+  program.variableNames.forEach((x, i) => {
+    uniformDeclaration += `${getCoordsDataType(inputInfo[i].shape.length)} ${
+        x.charAt(0).toLowerCase() + x.slice(1)}Shape; `;
+  });
+  uniformDeclaration +=
+      `${getCoordsDataType(outputData.shape.length)} outShape; `;
+  const stridesLength = outputData.shape.length - 1;
+  uniformDeclaration += `${getCoordsDataType(stridesLength)} shapeStride; `;
 
   if (program.size != null) {
     uniformDeclaration += 'int size; ';
@@ -138,15 +144,13 @@ export function makeShader(
     `);
   }
 
-  const [getOutputCoords, dispatchLayoutRank] = generateGetOutputCoords(
-      outputData.shape, program.dispatchLayout, needsShapesUniforms);
-  const getCoords =
-      generateGetCoordsFromFlatIndex(outputData.shape, needsShapesUniforms);
+  const [getOutputCoords, dispatchLayoutRank] =
+      generateGetOutputCoords(outputData.shape, program.dispatchLayout);
+  const getCoords = generateGetCoordsFromFlatIndex(outputData.shape);
   const sources = [
     SHADER_PREFIX, prefixSnippets.join('\n'), SAMPLING_SNIPPETS,
     getOutputCoords, getCoords,
-    getSetOutputSnippet(
-        outputData.shape, outputData.dtype, program.isVec4, needsShapesUniforms)
+    getSetOutputSnippet(outputData.shape, outputData.dtype, program.isVec4)
   ];
 
   if (dispatchLayoutRank === outputData.shape.length) {
@@ -156,7 +160,7 @@ export function makeShader(
         inputInfo
             .map(
                 x => getInputSamplingSnippet(
-                    x, outputData.shape, program.isVec4, needsShapesUniforms))
+                    x, outputData.shape, program.isVec4))
             .join('\n');
     sources.push(inputSamplingSnippet);
   }
@@ -214,8 +218,7 @@ const SAMPLING_SNIPPETS = `
 `;
 
 function getSetOutputSnippet(
-    outShape: number[], outBufferType: DataType, isVec4: boolean,
-    needsShapesUniforms: boolean): string {
+    outShape: number[], outBufferType: DataType, isVec4: boolean): string {
   const outRank = outShape.length;
   const glslType = mapToGlslTypes(outBufferType, isVec4);
   let snippet;
@@ -243,10 +246,6 @@ function getSetOutputSnippet(
         glslType === 'float' ? 'float(value)' :
                                (glslType === 'bool' ? 'bool(value)' : 'value')};
     }`;
-  }
-
-  if (!needsShapesUniforms) {
-    return snippet;
   }
 
   if (outRank >= 2) {
@@ -282,21 +281,18 @@ function getSetOutputSnippet(
 }
 
 function getInputSamplingSnippet(
-    inInfo: InputInfo, outShape: number[], isVec4: boolean,
-    needsShapesUniforms: boolean): string {
-  let res = getSamplerFromInInfo(inInfo, isVec4, needsShapesUniforms);
+    inInfo: InputInfo, outShape: number[], isVec4: boolean): string {
+  let res = getSamplerFromInInfo(inInfo, isVec4);
 
   const inShape = inInfo.shape;
   if (inShape.length <= outShape.length) {
-    res +=
-        getSamplerAtOutputCoords(inInfo, outShape, isVec4, needsShapesUniforms);
+    res += getSamplerAtOutputCoords(inInfo, outShape, isVec4);
   }
 
   return res;
 }
 
-function getSamplerFromInInfo(
-    inInfo: InputInfo, isVec4: boolean, needsShapesUniforms: boolean): string {
+function getSamplerFromInInfo(inInfo: InputInfo, isVec4: boolean): string {
   const texName = inInfo.name;
   const rank = inInfo.shape.length;
   const type = getCoordsDataType(rank);
@@ -320,12 +316,7 @@ function getSamplerFromInInfo(
     `;
   }
 
-  let shapeStr = '';
-  if (needsShapesUniforms) {
-    shapeStr = `${texName.charAt(0).toLowerCase() + texName.slice(1)}Shape`;
-  } else {
-    shapeStr = `${getShapeCoords(inInfo.shape)}`;
-  }
+  const shapeStr = `${texName.charAt(0).toLowerCase() + texName.slice(1)}Shape`;
 
   if (isVec4) {
     return `
@@ -345,8 +336,7 @@ function getSamplerFromInInfo(
 }
 
 function getSamplerAtOutputCoords(
-    inInfo: InputInfo, outShape: number[], isVec4: boolean,
-    needsShapesUniforms?: boolean): string {
+    inInfo: InputInfo, outShape: number[], isVec4: boolean): string {
   const texName = inInfo.name;
   const texFuncSnippet = texName.charAt(0).toUpperCase() + texName.slice(1);
 
@@ -405,12 +395,7 @@ function getSamplerAtOutputCoords(
     }
   }
 
-  let shapeStr = '';
-  if (needsShapesUniforms) {
-    shapeStr = `${texName.charAt(0).toLowerCase() + texName.slice(1)}Shape`;
-  } else {
-    shapeStr = `${getShapeCoords(inInfo.shape)}`;
-  }
+  const shapeStr = `${texName.charAt(0).toLowerCase() + texName.slice(1)}Shape`;
 
   if (isVec4) {
     return `
@@ -451,8 +436,8 @@ function getSamplerAtOutputCoords(
  */
 function generateGetOutputCoords(
     outShape: number[],
-    dispatchLayout: {x: number[], y?: number[], z?: number[]},
-    needsShapesUniforms: boolean): [string, number] {
+    dispatchLayout: {x: number[], y?: number[], z?: number[]}):
+    [string, number] {
   const {x, y = [], z = []} = dispatchLayout;
   let gatherDimensionsStr = '';
   const dims = [x, y, z];
@@ -472,14 +457,7 @@ function generateGetOutputCoords(
       gatherDimensionsStr += `int d${arr[0]} =
         int(gl_GlobalInvocationID[${i}]);`;
     } else {
-      let strides;
-      if (needsShapesUniforms) {
-        strides = symbolicallyComputeStrides(arr, 'outShape');
-      } else {
-        strides =
-            symbolicallyComputeStrides(arr, `${getShapeCoords(outShape)}`);
-      }
-
+      const strides = symbolicallyComputeStrides(arr, 'outShape');
       gatherDimensionsStr += `int index${i} =
           int(gl_GlobalInvocationID[${i}]);`;
       for (let j = 0; j < strides.length; j++) {
@@ -518,8 +496,7 @@ function generateGetOutputCoords(
  * with each stride and decrements the index until the index equals the final
  * dimension coordinate.
  */
-function generateGetCoordsFromFlatIndex(
-    shape: number[], needsShapesUniforms: boolean): string {
+function generateGetCoordsFromFlatIndex(shape: number[]): string {
   const rank = shape.length;
 
   if (rank <= 1) {
@@ -533,37 +510,23 @@ function generateGetCoordsFromFlatIndex(
     coords.push(`d${i}`);
   }
 
-  if (strides.length === 1 && needsShapesUniforms) {
+  if (strides.length === 1) {
     return `    ivec2 getCoordsFromFlatIndex(int index) {
       int d0 = index / shapeStride; int d1 = index - d0 * shapeStride;
       return ivec2(d0,d1);
     }`;
   }
-  let snippet = '';
-  if (needsShapesUniforms) {
-    snippet = strides
-                  .map((_, i) => {
-                    const line1 =
-                        `int ${coords[i]} = index / shapeStride[${i}]`;
-                    const line2 = i === strides.length - 1 ?
-                        `int ${coords[i + 1]} = index - ${
-                            coords[i]} * shapeStride[${i}]` :
-                        `index -= ${coords[i]} * shapeStride[${i}]`;
-                    return `${line1}; ${line2};`;
-                  })
-                  .join('');
-  } else {
-    snippet =
-        strides
-            .map((stride, i) => {
-              const line1 = `int ${coords[i]} = index / ${stride}`;
-              const line2 = i === strides.length - 1 ?
-                  `int ${coords[i + 1]} = index - ${coords[i]} * ${stride}` :
-                  `index -= ${coords[i]} * ${stride}`;
-              return `${line1}; ${line2};`;
-            })
-            .join('');
-  }
+  const snippet = strides
+                      .map((_, i) => {
+                        const line1 =
+                            `int ${coords[i]} = index / shapeStride[${i}]`;
+                        const line2 = i === strides.length - 1 ?
+                            `int ${coords[i + 1]} = index - ${
+                                coords[i]} * shapeStride[${i}]` :
+                            `index -= ${coords[i]} * shapeStride[${i}]`;
+                        return `${line1}; ${line2};`;
+                      })
+                      .join('');
 
   return `
     ${dtype} getCoordsFromFlatIndex(int index) {

@@ -591,19 +591,16 @@ export class WebGPUBackend extends KernelBackend {
       programUniforms?: Array<{type: string; data: number[]}>): TensorInfo {
     const output = this.makeTensorInfo(program.outputShape, outputDtype);
 
-    let uniformsWithType = null;
-
     // There are four kinds of uniforms: shapes, shape strides, program
     // size, program defined uniforms.
-    if (program.disableShapesUniforms !== true) {
-      const bufferShapes = inputs.concat(output).map(d => d.shape);
-      uniformsWithType = bufferShapes.map(d => {
-        return {type: 'int32', data: d};
-      });
-      const strides = util.computeStrides(output.shape);
+    const bufferShapes = inputs.concat(output).map(d => d.shape);
+    let uniformsWithType = bufferShapes.map(d => {
+      return {type: 'int32', data: d};
+    });
+    const strides = util.computeStrides(output.shape);
 
-      uniformsWithType.push({type: 'int32', data: strides});
-    }
+    uniformsWithType.push({type: 'int32', data: strides});
+
     if (program.size != null) {
       uniformsWithType.push({type: 'int32', data: [program.size]});
     }
@@ -637,7 +634,6 @@ export class WebGPUBackend extends KernelBackend {
       };
     });
     this.uploadToGPU(output.dataId);
-    const bufferShapes = inputs.concat(output).map(d => d.shape);
     const bufferTypes = inputsData.map(d => d.dtype).concat(output.dtype);
     const key =
         webgpu_program.makeShaderKey(program, bufferShapes, bufferTypes);
