@@ -29,13 +29,12 @@ export class FromPixelsProgram implements WebGPUProgram {
   dispatch: [number, number, number];
   workGroupSize: [number, number, number] =
       [256, 1, 1];  // The empirical value.
-  disableShapesUniforms = true;
 
   pipeline: GPUComputePipeline;
   bindGroupLayout: GPUBindGroupLayout;
 
   uniform: GPUBuffer;
-  lastUniformData = [0, 0];
+  lastUniformData: number[] = [];
 
   inputTexture: GPUTexture = null;
   lastPixelSize = {width: 0, height: 0};
@@ -53,11 +52,11 @@ export class FromPixelsProgram implements WebGPUProgram {
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [this.workPerThread, 1, 1]);
-    this.shaderKey = `fromPixels${outputShape}`;
   }
 
   constructor(outputShape: number[]) {
     this.updateOutputShape(outputShape);
+    this.shaderKey = 'fromPixels';
   }
 
   getUserCode(): string {
@@ -69,19 +68,22 @@ export class FromPixelsProgram implements WebGPUProgram {
     layout(set = 0, binding = 2) uniform Meta {
       int size;
       int numChannels;
-    } outShape;
+      ivec2 shapeStride;
+    };
+
+    ivec3 getCoordsFromFlatIndex(int flatIndexBase);
 
     void main() {
-      int flatIndexBase = int(gl_GlobalInvocationID.x) * outShape.numChannels;
+      int flatIndexBase = int(gl_GlobalInvocationID.x) * numChannels;
       ivec3 coords = getCoordsFromFlatIndex(flatIndexBase);
       int texR = coords[0];
       int texC = coords[1];
       int depth = coords[2];
       vec4 values = imageLoad(srcImage, ivec2(texC, texR));
-      for(int i = 0; i < outShape.numChannels; i++) {
+      for(int i = 0; i < numChannels; i++) {
         float value = values[i];
         int flatIndex = flatIndexBase + i;
-        if (flatIndex < outShape.size) {
+        if (flatIndex < size) {
           result[flatIndex] = int(floor(255.0 * value));
         }
       }
@@ -102,7 +104,8 @@ export class FromPixelsProgram implements WebGPUProgram {
     // and reuse it always.
     if (!this.uniform) {
       const uniformBuffer = device.createBuffer({
-        size: 8,  // The uniform buffer contains two 4 bytes element always.
+        size: uniformData.length *
+            4,  // The uniform buffer contains two 4 bytes element always.
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
       });
 
@@ -113,15 +116,14 @@ export class FromPixelsProgram implements WebGPUProgram {
     // The initial lastUniformData will have value [0, 0],
     // which is not a valid numChannels or valid size.
     if (!uniformData ||
-        (uniformData[0] === this.lastUniformData[0] &&
-         uniformData[1] === this.lastUniformData[1])) {
+        ((uniformData.length === this.lastUniformData.length) &&
+         uniformData.every((v, i) => v === this.lastUniformData[i]))) {
       return;
     }
 
     device.queue.writeBuffer(this.uniform, 0, new Uint32Array(uniformData));
 
-    this.lastUniformData[0] = uniformData[0];
-    this.lastUniformData[1] = uniformData[1];
+    this.lastUniformData = uniformData;
   }
 
   makeInputTexture(device: GPUDevice, pixelWidth: number, pixelHeight: number):

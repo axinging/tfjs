@@ -30,7 +30,8 @@ export function fromPixelsImageBitmap(args: {
 
   const outShape = [imageBitmap.height, imageBitmap.width, numChannels];
   const size = util.sizeFromShape(outShape);
-  const uniformData: [number, number] = [size, numChannels];
+  const strides = util.computeStrides(outShape);
+  const uniformData = [size, numChannels, ...strides];
 
   const output = backend.makeTensorInfo(outShape, 'int32');
   if (!backend.fromPixelProgram) {
@@ -51,7 +52,8 @@ export function fromPixelsImageBitmap(args: {
 
   const {bindGroupLayout, pipeline} = backend.getAndSavePipeline(key, () => {
     return webgpu_program.compileProgram(
-        backend.glslang, backend.device, backend.fromPixelProgram, [], output);
+        backend.glslang, backend.device, backend.fromPixelProgram, [], output,
+        true);
   });
   backend.fromPixelProgram.setWebGPUBinary(bindGroupLayout, pipeline);
 

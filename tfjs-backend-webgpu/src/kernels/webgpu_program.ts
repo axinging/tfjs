@@ -33,7 +33,6 @@ export interface WebGPUProgram {
   uniforms?: string;
   // When true, shapes are used as const, otherwise are stored in uniform
   // buffer.
-  disableShapesUniforms?: boolean;
   // Size of register cache in one dimension (assumes square cache).
   // Each thread writes to workPerThread * workPerThread locations in the output
   // buffer.
@@ -72,12 +71,12 @@ export const makeBindGroup =
 
 export const compileProgram =
     (glslang: Glslang, device: GPUDevice, program: WebGPUProgram,
-     inputsData: shader_preprocessor.InputInfo[],
-     output: TensorInfo): WebGPUBinary => {
+     inputsData: shader_preprocessor.InputInfo[], output: TensorInfo,
+     isFromPixel = false): WebGPUBinary => {
       const outputData = {dtype: output.dtype, shape: output.shape};
 
-      const source =
-          shader_preprocessor.makeShader(inputsData, outputData, program);
+      const source = shader_preprocessor.makeShader(
+          inputsData, outputData, program, isFromPixel);
       const result = glslang.compileGLSLZeroCopy(source, 'compute', false);
       if (result.data.length === 0) {
         throw new Error('Shader compilation failed');
