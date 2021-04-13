@@ -44,7 +44,6 @@ export class TransposeProgram implements WebGPUProgram {
         [this.workPerThread, 1, 1]);
 
     this.newDim = newDim;
-    // TODO(xing.xu): refine newDim in shaderKey.
     this.shaderKey = `transpose_${newDim}`;
     this.size = util.sizeFromShape(this.outputShape);
   }

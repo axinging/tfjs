@@ -33,22 +33,6 @@ export function getCoordsDataType(rank: number): string {
   }
 }
 
-export function getShapeCoords(dataShape: number[]): string {
-  const rank = dataShape.length;
-  if (rank <= 1) {
-    return `int(${dataShape[0]})`;
-  } else if (rank === 2) {
-    return `ivec2(${dataShape[0]}, ${dataShape[1]})`;
-  } else if (rank === 3) {
-    return `ivec3(${dataShape[0]}, ${dataShape[1]}, ${dataShape[2]})`;
-  } else if (rank === 4) {
-    return `ivec4(${dataShape[0]}, ${dataShape[1]}, ${dataShape[2]}, ${
-        dataShape[3]})`;
-  } else {
-    throw Error(`GPU for rank ${rank} is not yet supported`);
-  }
-}
-
 type GLSLDataType = 'float'|'int'|'vec4'|'ivec4'|'bvec4';
 function mapToGlslTypes(type: DataType, isVec4: boolean): GLSLDataType|
     DataType {

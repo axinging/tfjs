@@ -77,14 +77,14 @@ export function reduce(
     const xSize = util.sizeFromShape(input.shape);
     const batchSize = xSize / inSize;
 
-    const reshapedInput = reshape(
-        {inputs: {x: input}, attrs: {shape: [batchSize, inSize]}, backend});
-    toDispose.push(reshapedInput);
-
     const reduceInfo = {windowSize: inSize, inSize, batchSize, outSize: 1};
     const dtype = reduceType === 'mean' ? 'float32' : sumOutType(x.dtype);
+    const uniformData = [
+      {type: 'int32', data: [batchSize, inSize]},
+    ];
     const program = new ReduceProgram(reduceInfo, reduceType, dtype);
-    const reduced = backend.runWebGPUProgram(program, [input], dtype);
+    const reduced =
+        backend.runWebGPUProgram(program, [input], dtype, uniformData);
     toDispose.push(reduced);
 
     res = reshape({inputs: {x: reduced}, attrs: {shape: resOutShape}, backend});
