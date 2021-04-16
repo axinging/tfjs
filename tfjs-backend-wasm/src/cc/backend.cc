@@ -93,6 +93,14 @@ void init() { xnn_initialize(nullptr); }
 #ifdef __EMSCRIPTEN__
 EMSCRIPTEN_KEEPALIVE
 #endif
+const size_t get_thread_pool_size() {
+  return std::min(std::max(backend::num_cores, backend::min_num_threads), 
+    backend::max_num_threads);
+}
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 void register_tensor(const size_t tensor_id, const size_t size,
                      void *memory_offset) {
   DCHECK(tensor_id > 0,
