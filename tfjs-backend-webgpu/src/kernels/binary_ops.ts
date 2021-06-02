@@ -170,6 +170,30 @@ export function getBinaryOpString(
   }
 }
 
+export function getBinaryOpStringWgsl(
+    type: BinaryOpType, useVec4?: boolean): string {
+  switch (type) {
+    case BinaryOpType.PRELU:
+      return useVec4 ? `
+      let aLessThanZero : vec4<bool> = vec4<bool>(a < vec4<f32>(0.,0., 0., 0.));
+      var aLessThanZeroF32 : vec4<f32> = vec4<f32>(0.,0., 0., 0.);
+      if (aLessThanZero[0]) {
+        aLessThanZeroF32[0] = 1.0;
+      }
+      for (var i:u32 = 0u; i< 4u; i = i+1u ) {
+        if (aLessThanZero[i]) {
+          aLessThanZeroF32[i] = 1.0;
+        }
+      }
+      return (vec4<f32>(aLessThanZeroF32) * (b * a)) + ((vec4<f32>(1.0, 1.0,1.0,1.0) - vec4<f32>(aLessThanZeroF32)) * a);
+
+    ` :
+                       'return (a < 0.) ? b * a : a;';
+    default:
+      throw new Error(`BinaryType ${type} is not implemented!`);
+  }
+}
+
 export function getBinaryProgram(
     op: BinaryOpType, aShape: number[], bShape: number[]) {
   const useVec4 =

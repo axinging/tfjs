@@ -17,14 +17,26 @@
 
 import {backend_util} from '@tensorflow/tfjs-core';
 
-import {BinaryOpType, getBinaryOpString} from './binary_ops';
+import {BinaryOpType, getBinaryOpString, getBinaryOpStringWgsl} from './binary_ops';
 import * as unary_op from './unary_op_webgpu';
 
 export function mapActivationToShaderProgram(
-    activation: backend_util.Activation, packed = false): string {
+    activation: backend_util.Activation, packed = false,
+    useWgsl = false): string {
   if (activation === null) {
     return null;
-  } else if (activation === 'linear') {
+  } else {
+    if (useWgsl) {
+      return mapActivationToShaderProgramWgsl(activation, packed);
+    } else {
+      return mapActivationToShaderProgramGlsl(activation, packed);
+    }
+  }
+}
+
+function mapActivationToShaderProgramGlsl(
+    activation: backend_util.Activation, packed = false): string {
+  if (activation === 'linear') {
     return unary_op.LINEAR;
   } else if (activation === 'relu') {
     return packed ? unary_op.RELU_VEC4 : unary_op.RELU;
@@ -34,6 +46,25 @@ export function mapActivationToShaderProgram(
     return unary_op.RELU6;
   } else if (activation === 'prelu') {
     return getBinaryOpString(BinaryOpType.PRELU, packed);
+  } else if (activation === 'sigmoid') {
+    return unary_op.SIGMOID;
+  }
+  throw new Error(`Activation ${
+      activation} has not been implemented for the WebGPU backend.`);
+}
+
+function mapActivationToShaderProgramWgsl(
+    activation: backend_util.Activation, packed = false): string {
+  if (activation === 'linear') {
+    return unary_op.LINEAR;
+  } else if (activation === 'relu') {
+    return packed ? unary_op.RELU_VEC4_WGSL : unary_op.RELU_WGSL;
+  } else if (activation === 'elu') {
+    return packed ? unary_op.ELU_VEC4 : unary_op.ELU;
+  } else if (activation === 'relu6') {
+    return packed ? unary_op.RELU6_VEC4_WGSL : unary_op.RELU6;
+  } else if (activation === 'prelu') {
+    return getBinaryOpStringWgsl(BinaryOpType.PRELU, packed);
   } else if (activation === 'sigmoid') {
     return unary_op.SIGMOID;
   }
