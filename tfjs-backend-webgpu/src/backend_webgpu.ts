@@ -23,7 +23,7 @@ import {backend_util, buffer, DataStorage, DataType, DataValues, engine, env, Ke
 import {Glslang} from '@webgpu/glslang/dist/web-devel/glslang.onefile';
 
 import {BufferManager} from './buffer_manager';
-import {BinaryOpType, getBinaryOpString} from './kernels/binary_ops';
+import {BinaryOpType, getBinaryOpString, getBinaryOpStringWGSL} from './kernels/binary_ops';
 import {FromPixelsProgram} from './kernels/FromPixels_utils/from_pixels_webgpu';
 import * as unary_op from './kernels/unary_op_webgpu';
 import * as webgpu_program from './kernels/webgpu_program';
@@ -861,6 +861,25 @@ export class WebGPUBackend extends KernelBackend {
       return unary_op.RELU6;
     } else if (activation === 'prelu') {
       return getBinaryOpString(BinaryOpType.PRELU, packed);
+    } else if (activation === 'sigmoid') {
+      return unary_op.SIGMOID;
+    }
+    throw new Error(`Activation ${
+        activation} has not been implemented for the WebGPU backend.`);
+  }
+
+  mapActivationToShaderProgramWGSL(
+      activation: backend_util.Activation, packed = false): string {
+    if (activation === 'linear') {
+      return unary_op.LINEAR;
+    } else if (activation === 'relu') {
+      return packed ? unary_op.RELU_VEC4_WGSL : unary_op.RELU_WGSL;
+    } else if (activation === 'elu') {
+      return packed ? unary_op.ELU_VEC4 : unary_op.ELU;
+    } else if (activation === 'relu6') {
+      return packed ? unary_op.RELU6_VEC4_WGSL :  unary_op.RELU6;
+    } else if (activation === 'prelu') {
+      return getBinaryOpStringWGSL(BinaryOpType.PRELU, packed);
     } else if (activation === 'sigmoid') {
       return unary_op.SIGMOID;
     }
