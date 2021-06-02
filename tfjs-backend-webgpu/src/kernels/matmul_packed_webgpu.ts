@@ -234,7 +234,7 @@ export class MatMulPackedProgram implements WebGPUProgram {
     this.transposeA = transposeA;
     this.transposeB = transposeB;
     this.addBias = addBias;
-    this.activation = activation;
+    this.activation = mapActivationToShaderProgram(activation);
     this.hasPreluActivationWeights = hasPreluActivationWeights;
 
     const dimBOuter = this.outputShape[2];

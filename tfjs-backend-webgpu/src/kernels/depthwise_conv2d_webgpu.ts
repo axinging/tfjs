@@ -55,7 +55,7 @@ export class DepthwiseConv2DProgram implements WebGPUProgram {
 
     this.convInfo = convInfo;
     this.addBias = addBias;
-    this.activation = activation;
+    this.activation = mapActivationToShaderProgram(activation);
     this.hasPreluActivation = hasPreluActivation;
 
     this.shaderKey = `depthwise_${this.activation}_${
