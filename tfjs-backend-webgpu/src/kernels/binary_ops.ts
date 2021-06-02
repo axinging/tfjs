@@ -123,8 +123,22 @@ export function getBinaryOpString(
   `;
     case BinaryOpType.PRELU:
       return useVec4 ? `
-      vec4 aLessThanZero = vec4(lessThan(a, vec4(0.)));
-      return (aLessThanZero * (b * a)) + ((vec4(1.0) - aLessThanZero) * a);
+      //let aLessThanZero : vec4<f32> = vec4<f32>(a < vec4<f32>(0.,0., 0., 0.));
+      //return (aLessThanZero * (b * a)) + ((vec4<f32>(1.0) - aLessThanZero) * a);
+
+      let aLessThanZero : vec4<bool> = vec4<bool>(a < vec4<f32>(0.,0., 0., 0.));
+      var aLessThanZeroF32 : vec4<f32> = vec4<f32>(0.,0., 0., 0.); 
+      if (aLessThanZero[0]) {
+        aLessThanZeroF32[0] = 1.0;
+      }
+      // var i :u32 = 0u;
+      for (var i:u32 = 0u; i< 4u; i = i+1u ) {
+        if (aLessThanZero[i]) {
+          aLessThanZeroF32[i] = 1.0;
+        }
+      }
+      return (vec4<f32>(aLessThanZeroF32) * (b * a)) + ((vec4<f32>(1.0, 1.0,1.0,1.0) - vec4<f32>(aLessThanZeroF32)) * a);
+
     ` :
                        'return (a < 0.) ? b * a : a;';
     case BinaryOpType.MAX:
