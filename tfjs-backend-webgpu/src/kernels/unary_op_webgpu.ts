@@ -21,9 +21,12 @@ import {computeDispatch, flatDispatchLayout} from '../webgpu_util';
 import {WebGPUProgram} from './webgpu_program';
 
 export const RELU = 'return max(a, 0.0);';
+export const RELU_WGSL = 'return max(a, 0.0);';
 export const RELU6 = 'return clamp(a, 0.0, 6.0);';
+export const RELU6_VEC4_WGSL = 'return clamp(a, vec4<f32>(0., 0., 0., 0.), vec4<f32>(6., 6., 6., 6.));';
 export const LINEAR = `return a;`;
 export const ELU = `return (a >= 0.0) ? a : (exp(a) - 1.0);`;
+export const ELU_WGSL = `if (a >= 0.0) { return a; }  return (exp(a) - 1.0);`;
 export const PRELU = `return (a < 0.) ? b * a : a;`;
 
 export const ELU_VEC4 = `
@@ -49,6 +52,33 @@ export const RELU_VEC4 = `
   return result;
 `;
 
+export const RELU_VEC4_WGSL = `
+  var resBool : vec4<bool> = vec4<bool>(a >= vec4<f32>(0., 0., 0., 0.));
+  let isNaN : vec4<bool> = isNan(a);
+  var resFloat : vec4<f32> = vec4<f32>(0., 0., 0., 0.); 
+
+  for (var i:u32 = 0u; i< 4u; i = i+1u ) {
+    if (resBool[i]) {
+      resFloat[i] = 1.0;
+    }
+  }
+  resFloat = a * resFloat;
+  if (isNaN.r) {
+  	resFloat.r = a.r;
+  }
+  if (isNaN.g) {
+  	resFloat.g = a.g;
+  }
+  if (isNaN.b) {
+  	resFloat.b = a.b;
+  }
+  if (isNaN.a) {
+  	resFloat.a = a.a;
+  }
+  return resFloat;
+`;
+
+
 export const SIGMOID = `return 1.0 / (1.0 + exp(-1.0 * a));`;
 export const ABS = `return abs(a);`;
 export const SQUARE = `return a * a;`;
@@ -58,9 +88,10 @@ export const TANH = `
   return sign(a) * (1.0 - e2x) / (1.0 + e2x);
 `;
 export const EXP = `return exp(a);`;
-export const LOG = `if (a < 0.0) return 1.0/0.0;
+export const LOG = `if (a < 0.0) { return 1.0/0.0; }
   return log(a);`;
 export const TO_INT = `return float(int(a));`;
+export const TO_INT_WGSL = `return f32(i32((a)));`;
 export const SQRT = `return sqrt(a);`;
 
 export class UnaryOpProgram implements WebGPUProgram {
@@ -70,6 +101,7 @@ export class UnaryOpProgram implements WebGPUProgram {
   dispatch: [number, number, number];
   variableNames = ['A'];
   workGroupSize: [number, number, number];
+  useWGSL = true;
   op: string;
   size: number;
 
@@ -98,6 +130,30 @@ export class UnaryOpProgram implements WebGPUProgram {
         {
           float a = getAAtOutCoords();
           setOutput(index, unaryOperation(a));
+        }
+      }
+      `;
+  }
+
+  getUserHeaderCode(): string {
+    return `
+    // float NAN; int aShape; int outShape; int outShapeStrides; int size; 
+ `;
+  }
+
+  getUserWGSLCode(): string {
+    return `
+      fn unaryOperation(a : f32) -> f32{
+        ${this.op}
+      }
+      [[stage(compute), workgroup_size(128, 1, 1)]]
+      fn main([[builtin(local_invocation_id)]] local_id : vec3<u32>,
+              [[builtin(global_invocation_id)]] global_id  : vec3<u32>) {
+        let index : u32 = u32(global_id.x);
+        if (index < uniforms.size)
+        {
+          let a : f32 = getAAtOutCoords(global_id);
+          setOutputFlat(index, unaryOperation(a));
         }
       }
       `;
