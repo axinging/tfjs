@@ -70,6 +70,7 @@ export class UnaryOpProgram implements WebGPUProgram {
   dispatch: [number, number, number];
   variableNames = ['A'];
   workGroupSize: [number, number, number];
+  useWGSL = true;
   op: string;
   size: number;
 
@@ -85,18 +86,41 @@ export class UnaryOpProgram implements WebGPUProgram {
     this.shaderKey = `unary_${op}`;
     this.size = util.sizeFromShape(this.outputShape);
   }
+  
+  getUserHeaderCode () :string {
+    return `
+    // float NAN; int aShape; int outShape; int outShapeStrides; int size; 
+    [[block]] struct Uniforms {
+      NAN : u32;
+      aShape : u32;
+      outShape : u32;
+      outShapeStrides : u32;
+      size : u32; 
+  };
+
+    [[block]] struct Matrix {
+      numbers: array<f32>;
+    };
+  
+    [[group(0), binding(1)]] var<storage> A : [[access(read)]] Matrix;
+// [[group(0), binding(1)]] var<storage> secondMatrix : [[access(read)]] Matrix;
+[[group(0), binding(0)]] var<storage> result : [[access(write)]] Matrix;
+ [[group(0), binding(2)]] var<uniform> uniforms : Uniforms;
+ `;
+  }  
 
   getUserCode(): string {
     return `
-      float unaryOperation(float a) {
+      fn unaryOperation(a : f32) -> f32{
         ${this.op}
       }
-
-      void main() {
-        int index = int(gl_GlobalInvocationID.x);
-        if (index < size)
+      [[stage(compute), workgroup_size(128, 1, 1)]]
+      fn main([[builtin(local_invocation_id)]] local_id : vec3<u32>,
+              [[builtin(global_invocation_id)]] global_id  : vec3<u32>) {
+        let index : u32 = u32(global_id.x);
+        if (index < uniforms.size)
         {
-          float a = getAAtOutCoords();
+          let a : f32 = getAAtOutCoords(global_id);
           setOutput(index, unaryOperation(a));
         }
       }
