@@ -33,21 +33,24 @@ export function makeMatMulPackedSource(workPerThread: number[]): string {
 
     let RowPerThread : u32 = ${workPerThread[1]};
     let ColPerThread : u32 = ${workPerThread[0]};
-    let TileAOuter : u32 = int(gl_WorkGroupSize.y) * RowPerThread;
-    let TileBOuter : u32 = int(gl_WorkGroupSize.x) * ColPerThread;
-    let TileInner : u32 = TileAOuter > TileBOuter ? TileAOuter : TileBOuter;
+    //let TileAOuter : u32 = int(gl_WorkGroupSize.y) * RowPerThread;
+    //let TileBOuter : u32 = int(gl_WorkGroupSize.x) * ColPerThread;
+    //let TileInner : u32 = TileAOuter > TileBOuter ? TileAOuter : TileBOuter;
 
-    var<workgroup> mm_Asub : array<array<f32, TileInner>, TileAOuter>;
-    var<workgroup> mm_Bsub : array<array<f32, TileBOuter>, TileInner>;
+    //var<workgroup> mm_Asub : array<array<f32, TileInner>, TileAOuter>;
+    //var<workgroup> mm_Bsub : array<array<f32, TileBOuter>, TileInner>;
+
+    var<workgroup> mm_Asub : array<array<vec4<f32>, 16>, 64>;
+    var<workgroup> mm_Bsub : array<array<vec4<f32>, 16>, 64>;
     // shared float mm_Asub[TileAOuter][TileInner];
     // shared float mm_Bsub[TileInner][TileBOuter];
 
-    fn mm_matMul(dimAOuter : u32, dimInner : u32, dimBOuter : u32) {
-      let tileRow = int(gl_LocalInvocationID.y) * RowPerThread;
-      let tileCol = int(gl_LocalInvocationID.x) * ColPerThread;
+    fn mm_matMul(dimAOuter : u32, dimInner : u32, dimBOuter : u32, localId: vec3<u32>, globalId: vec3<u32>, ) {
+      let tileRow = int(localId.y) * RowPerThread;
+      let tileCol = int(localId.x) * ColPerThread;
 
-      let globalRow = int(gl_GlobalInvocationID.y) * RowPerThread;
-      let globalCol = int(gl_GlobalInvocationID.x) * ColPerThread;
+      let globalRow = int(globalId.y) * RowPerThread;
+      let globalCol = int(globalId.x) * ColPerThread;
 
       let numTiles = (dimInner - 1) / TileInner + 1;
 
@@ -55,9 +58,13 @@ export function makeMatMulPackedSource(workPerThread: number[]): string {
       let ACached : f32;
       let BCached[ColPerThread] : f32;
 
+      let TileAOuter : u32 = int(gl_WorkGroupSize.y) * RowPerThread;
+      let TileBOuter : u32 = int(gl_WorkGroupSize.x) * ColPerThread;
+      let TileInner : u32 = TileAOuter > TileBOuter ? TileAOuter : TileBOuter;
+
       // Without this initialization strange values show up in acc.
-      for (int innerRow = 0; innerRow < RowPerThread; innerRow++) {
-        for (int innerCol = 0; innerCol < ColPerThread; innerCol++) {
+      for (var innerRow = 0; innerRow < RowPerThread; innerRow++) {
+        for (var innerCol = 0; innerCol < ColPerThread; innerCol++) {
           acc[innerRow][innerCol] = 0.0;
         }
       }
@@ -385,8 +392,9 @@ export class MatMulPackedProgram implements WebGPUProgram {
         ${applyActivationSnippet}
         setOutput(batch, row, col, value);
       }
-      fn main() {
-        batch = int(gl_GlobalInvocationID.z);
+      fn main([[builtin(local_invocation_id)]] local_id : vec3<u32>,
+      [[builtin(global_invocation_id)]] global_id  : vec3<u32>) {
+        batch = u32(global_id.z);
         mm_matMul(dimAOuter, dimInner, dimBOuter);
       }
     `;
