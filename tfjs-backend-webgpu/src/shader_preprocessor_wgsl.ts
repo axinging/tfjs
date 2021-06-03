@@ -16,7 +16,7 @@
  */
 
 import {backend_util, DataType, util} from '@tensorflow/tfjs-core';
-import {getGlslDifferences} from './glsl_version';
+// import {getGlslDifferences} from './glsl_version';
 import {symbolicallyComputeStrides} from './shader_util';
 
 export function getCoordsDataType(rank: number): string {
@@ -76,7 +76,9 @@ export function makeShader(
       SHADER_PREFIX, outputBufferStr, program.getUserCode(), getCoords
     ].join('\n');
   }
+  /*
   const prefixSnippets: string[] = [];
+
 
   if (program.workGroupSize != null) {
     prefixSnippets.push(`
@@ -119,6 +121,7 @@ export function makeShader(
     uniformDeclaration += program.uniforms;
   }
 
+
   if (uniformDeclaration !== '') {
     prefixSnippets.push(`
         layout(std140, set = 0, binding = ${
@@ -127,6 +130,7 @@ export function makeShader(
         };
     `);
   }
+
 
   prefixSnippets.push(getGlslDifferences().defineSpecialNaN);
 
@@ -152,12 +156,14 @@ export function makeShader(
             .join('\n');
     sources.push(inputSamplingSnippet);
   }
-
-  sources.push(program.getUserCode());
-  const source = sources.join('\n');
+  */
+  //sources.push(program.getUserCode());
+  const source = program.getUserCode();
+  // const source = sources.join('\n');
   return source;
 }
 
+/*
 const SHADER_PREFIX = `#version 450
 
   int idiv(int a, int b, float sign) {
@@ -204,6 +210,10 @@ const SAMPLING_SNIPPETS = `
       shape.y * shape.z * shape.w, shape.z * shape.w, shape.w, 1.)));
   }
 `;
+*/
+const SHADER_PREFIX = ` `;
+/*
+const SAMPLING_SNIPPETS = ` `;
 
 function getSetOutputSnippet(
     outShape: number[], outBufferType: DataType, isVec4: boolean): string {
@@ -351,8 +361,9 @@ function getSamplerFromInInfo(inInfo: InputInfo, isVec4: boolean): string {
     }
    `;
 }
+*/
 
-function getSamplerAtOutputCoords(
+export function getSamplerAtOutputCoords(
     inInfo: InputInfo, outShape: number[], isVec4: boolean,
     isFlatDispatchLayout: boolean): string {
   const texName = inInfo.name;
@@ -481,7 +492,7 @@ function getSamplerAtOutputCoords(
  * Generates getOutputCoords() function that computes output coordinates from
  * dispatch geometry to reduce arithmetic.
  */
-function generateGetOutputCoords(
+export function generateGetOutputCoords(
     outShape: number[],
     dispatchLayout: {x: number[], y?: number[], z?: number[]}):
     [string, number] {

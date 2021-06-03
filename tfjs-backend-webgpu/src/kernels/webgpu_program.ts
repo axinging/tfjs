@@ -19,6 +19,7 @@ import {DataType, Rank, ShapeMap, TensorInfo} from '@tensorflow/tfjs-core';
 import {Glslang} from '@webgpu/glslang/dist/web-devel/glslang.onefile';
 
 import * as shader_preprocessor from '../shader_preprocessor';
+import * as shader_preprocessor_wgsl from '../shader_preprocessor_wgsl';
 
 export interface WebGPUProgram {
   // The unique key to distinguish different shader source code.
@@ -39,6 +40,7 @@ export interface WebGPUProgram {
   // in a thread group. Individual dimensions determines thread layout within
   // the group.
   workGroupSize?: [number, number, number];
+  useWGSL?: boolean;
   isVec4?: boolean;
   // size is used for bounds checking.
   size?: number;
@@ -70,18 +72,27 @@ export const compileProgram =
      isFromPixel = false): GPUComputePipeline => {
       const outputData = {dtype: output.dtype, shape: output.shape};
 
-      const source = shader_preprocessor.makeShader(
+      let source;
+      let module;
+      console.log("program.useWGSL="+program.useWGSL);
+      if (!program.useWGSL) {
+        console.log("useWGSL");
+        source = shader_preprocessor_wgsl.makeShader(
           inputsData, outputData, program, isFromPixel);
-      const result = glslang.compileGLSLZeroCopy(source, 'compute', false);
-      if (result.data.length === 0) {
-        throw new Error('Shader compilation failed');
+        module = device.createShaderModule({code: source});
+      } else {
+        source = shader_preprocessor.makeShader(
+          inputsData, outputData, program, isFromPixel);
+        const result = glslang.compileGLSLZeroCopy(source, 'compute', false);
+        if (result.data.length === 0) {
+          throw new Error('Shader compilation failed');
+        }
+        result.free();
+        module = device.createShaderModule({code: source});
       }
-
-      const module = device.createShaderModule({code: result.data});
       const pipeline = device.createComputePipeline(
           {layout: pipelineLayout, compute: {module, entryPoint: 'main'}});
 
-      result.free();
       return pipeline;
     };
 

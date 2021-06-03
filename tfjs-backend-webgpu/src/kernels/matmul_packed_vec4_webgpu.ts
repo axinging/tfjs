@@ -21,23 +21,38 @@ import {computeDispatch, computeWorkGroupSizeForMatMul, tilesFitEvenlyIntoShape}
 import {WebGPUProgram} from './webgpu_program';
 
 export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
+  console.log("makeMatMulPackedVec4Source");
   return `
-    vec4 mm_readA(int row, int col);
-    vec4 mm_readB(int row, int col);
-    void mm_write(int row, int col, vec4 value);
+    //vec4 mm_readA(int row, int col);
+    //vec4 mm_readB(int row, int col);
+    //void mm_write(int row, int col, vec4 value);
+    [[block]] struct Uniforms {
+      dimAOuter : u32;
+      dimInner : u32;
+      dimBOuter : u32;
+  };
+  [[block]] struct Matrix {
+      numbers: array<f32>;
+  };
 
-    const int RowPerThread = ${workPerThread[1]};
-    const int ColPerThread = ${
+  [[group(0), binding(0)]] var<storage> firstMatrix : [[access(read)]] Matrix;
+  [[group(0), binding(1)]] var<storage> secondMatrix : [[access(read)]] Matrix;
+  [[group(0), binding(2)]] var<storage> resultMatrix : [[access(write)]] Matrix;
+  [[group(0), binding(3)]] var<uniform> uniforms : Uniforms;
+
+    let RowPerThread : u32 = ${workPerThread[1]};
+    let ColPerThread : u32 = ${
       workPerThread[0]}; // only support ColPerThread = 4
-    const int TileAOuter = int(gl_WorkGroupSize.y) * RowPerThread;
-    const int TileBOuter = int(gl_WorkGroupSize.x) * ColPerThread;
-    const int TileInner = TileBOuter;
+    let TileAOuter : u32 = int(gl_WorkGroupSize.y) * RowPerThread;
+    let TileBOuter : u32 = int(gl_WorkGroupSize.x) * ColPerThread;
+    let TileInner : u32 = TileBOuter;
 
+    // var<workgroup> mm_Asub : array<f32, 4096>;
     shared vec4 mm_Asub[TileAOuter][TileInner / ColPerThread];
     shared vec4 mm_Bsub[TileInner][TileBOuter / ColPerThread];
 
-    void mm_matMul(int dimAOuter, int dimInner, int dimBOuter) {
-      int tileRow = int(gl_LocalInvocationID.y) * RowPerThread;
+    fn mm_matMul(dimAOuter : i32, dimInner : i32, dimBOuter : i32) {
+      let tileRow : i32 = int(gl_LocalInvocationID.y) * RowPerThread;
       int tileCol = int(gl_LocalInvocationID.x);
 
       int globalRow = int(gl_GlobalInvocationID.y) * RowPerThread;
@@ -55,14 +70,14 @@ export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
       }
 
       // Loop over shared dimension.
-      int globalColA = tileCol;
-      const int RowPerThreadB = TileInner / int(gl_WorkGroupSize.y);
-      int tileRowB = int(gl_LocalInvocationID.y) * RowPerThreadB;
-      for (int t = 0; t < numTiles; t++) {
+      var globalColA : u32 = tileCol;
+      let RowPerThreadB : u32 = TileInner / int(gl_WorkGroupSize.y);
+      let tileRowB  : u32 = int(gl_LocalInvocationID.y) * RowPerThreadB;
+      for (var t = 0; t < numTiles; t++) {
         // Load one tile of A into local memory.
-        for (int innerRow = 0; innerRow < RowPerThread; innerRow++) {
-            int inputRow = tileRow + innerRow;
-            int inputCol = tileCol;
+        for (var innerRow = 0; innerRow < RowPerThread; innerRow++) {
+            let inputRow = tileRow + innerRow;
+            let inputCol = tileCol;
 
             mm_Asub[inputRow][inputCol] = mm_readA(
                 globalRow + innerRow,
@@ -71,25 +86,25 @@ export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
         globalColA += TileInner / ColPerThread;
 
         // Load one tile of B into local memory.
-        for (int innerRow = 0; innerRow < RowPerThreadB; innerRow++) {
-            int inputRow = tileRowB + innerRow;
-            int inputCol = tileCol;
+        for (var innerRow = 0; innerRow < RowPerThreadB; innerRow++) {
+            let inputRow = tileRowB + innerRow;
+            let inputCol = tileCol;
 
             mm_Bsub[inputRow][inputCol] = mm_readB(
               t * TileInner + inputRow,
               globalCol);
         }
 
-        barrier();
+        workgroupBarrier();
 
         // Compute acc values for a single thread.
-        for (int k = 0; k < TileInner / ColPerThread; k++) {
+        for (var k = 0; k < TileInner / ColPerThread; k++) {
           BCached[0] = mm_Bsub[k * ColPerThread][tileCol];
           BCached[1] = mm_Bsub[k * ColPerThread + 1][tileCol];
           BCached[2] = mm_Bsub[k * ColPerThread + 2][tileCol];
           BCached[3] = mm_Bsub[k * ColPerThread + 3][tileCol];
 
-          for (int i = 0; i < RowPerThread; i++) {
+          for (var i = 0; i < RowPerThread; i++) {
             ACached = mm_Asub[tileRow + i][k];
             acc[i] = BCached[0] * ACached.x + acc[i];
             acc[i] = BCached[1] * ACached.y + acc[i];
@@ -97,10 +112,10 @@ export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
             acc[i] = BCached[3] * ACached.w + acc[i];
           }
         }
-        barrier();
+        workgroupBarrier();
       }
 
-      for (int innerRow = 0; innerRow < RowPerThread; innerRow++) {
+      for (var innerRow = 0; innerRow < RowPerThread; innerRow++) {
         mm_write(globalRow + innerRow,
           globalCol,
           acc[innerRow]);
@@ -110,35 +125,38 @@ export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
 }
 
 export function makeMatMulVectorVec4Source(): string {
+  console.log("makeMatMulVectorVec4Source");
   return `
-    vec4 mm_readA(int row, int col);
-    vec4 mm_readB(int row, int col);
-    void mm_write(int row, int col, vec4 value);
+    //vec4 mm_readA(int row, int col);
+    //vec4 mm_readB(int row, int col);
+    //void mm_write(int row, int col, vec4 value);
 
-    const int TileSize = int(gl_WorkGroupSize.x) * 4;
+    let TileSize : u32 = int(gl_WorkGroupSize.x) * 4;
 
-    shared vec4 mm_Asub[TileSize / 4];
 
-    void mm_matMul(int dimAOuter, int dimInner, int dimBOuter) {
-      int tileCol = int(gl_LocalInvocationID.x);
-      int globalCol = int(gl_GlobalInvocationID.x);
-      int globalRow = int(gl_GlobalInvocationID.y);
+    //shared vec4 mm_Asub[TileSize / 4];
+    var<workgroup> mm_Asub : array<f32, TileSize / 4>;
 
-      int numTiles = (dimInner - 1) / TileSize + 1;
+    mm_matMul(dimAOuter : u32, dimInner : u32, dimBOuter : u32) {
+      let tileCol = int(gl_LocalInvocationID.x);
+      let globalCol = int(gl_GlobalInvocationID.x);
+      let globalRow = int(gl_GlobalInvocationID.y);
+
+      let numTiles = (dimInner - 1) / TileSize + 1;
 
       // Without this initialization strange values show up in acc.
-      vec4 acc = vec4(0.0);
+      var acc : vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 0.0);
 
       // Loop over shared dimension.
-      for (int t = 0; t < numTiles; t++) {
+      for (var t = 0; t < numTiles; t++) {
         // Load one tile of A into local memory.
-        int colA = t * TileSize / 4 + tileCol;
+        let colA = t * TileSize / 4 + tileCol;
         mm_Asub[tileCol] = mm_readA(globalRow, colA);
-        barrier();
+        workgroupBarrier();
 
         // Compute acc values for a single thread.
-        for (int k = 0; k < TileSize / 4; k++) {
-          int rowB = t * TileSize + k * 4;
+        for (var k = 0; k < TileSize / 4; k++) {
+          let rowB = t * TileSize + k * 4;
           vec4 BCached0 = mm_readB(rowB, globalCol);
           vec4 BCached1 = mm_readB(rowB + 1, globalCol);
           vec4 BCached2 = mm_readB(rowB + 2, globalCol);
@@ -151,7 +169,7 @@ export function makeMatMulVectorVec4Source(): string {
           acc += BCached3 * ACached.w;
         }
 
-        barrier();
+        workgroupBarrier();
       }
 
       if (globalRow < dimAOuter && globalCol < dimBOuter) {
@@ -169,6 +187,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
   workPerThread: number;
   variableNames = ['A', 'B'];
   workGroupSize: [number, number, number] = [16, 16, 1];
+  useWGSL = true;
   isVec4 = true;
   aShape: [number, number, number];
   addBias: boolean;
@@ -232,6 +251,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
   }
 
   getUserCode(): string {
+    console.log("MatMulPackedVec4Program ddd");
     const sampleA = this.fitA ?
         `A[batch * batchASize + row * dimInner / 4 + col]` :
         `coordsInBounds(ivec2(row, col * 4), ivec2(dimAOuter, dimInner)) ?
@@ -276,28 +296,30 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
             makeMatMulPackedVec4Source([this.vecSize, this.workPerThread, 1]) :
             makeMatMulVectorVec4Source()}
 
-      vec4 mm_readA(int row, int col) {
-        int batchASize = aShape[1] * aShape[2] / ${this.vecSize};
+      fn mm_readA(row : u32, col : u32) => vec4<f32> {
+        let batchASize = aShape[1] * aShape[2] / ${this.vecSize};
         return ${sampleA};
       }
 
-      vec4 mm_readB(int row, int col) {
+      fn mm_readB(row : u32, col : u32) => vec4<f32> {
         // TODO: This is not covered in unit tests.
         int batchBSize = bShape[1] * bShape[2] / ${this.vecSize};
         return ${sampleB};
       }
 
-      void mm_write(int row, int col, vec4 value) {
+      fn mm_write(row : u32, col : u32, value : vec4<f32>){
         if (row < dimAOuter && col * 4 < dimBOuter)
         {
-          ivec3 outCoord = ivec3(batch, row, col * 4);
+          let outCoord :vec3<i32> = vec3<i32>(batch, row, col * 4);
           ${addBiasSnippet}
           ${applyActivationSnippet}
           setOutput(outCoord[0], outCoord[1], outCoord[2], value);
         }
       }
 
-      void main() {
+      [[stage(compute), workgroup_size(16, 16, 1)]]
+      fn main([[builtin(local_invocation_id)]] local_id : vec3<u32>,
+        [[builtin(global_invocation_id)]] global_id  : vec3<u32>) {
         batch = int(gl_GlobalInvocationID.z);
         mm_matMul(dimAOuter, dimInner, dimBOuter);
       }
