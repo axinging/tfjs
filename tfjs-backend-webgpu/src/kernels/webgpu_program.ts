@@ -45,6 +45,7 @@ export interface WebGPUProgram {
   // size is used for bounds checking.
   size?: number;
   getUserCode: () => string;
+  getUserHeaderCode?: () => string;
 }
 
 export interface TensorData {

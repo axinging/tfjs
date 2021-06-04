@@ -109,7 +109,10 @@ export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
   `;
 }
 
-const kMatMulVec4Header =`
+
+
+function getMatMulVec4Header(addBiasSnippet: string, applyActivationSnippet: string) {
+  return `
 [[block]] struct Uniforms {
     dimAOuter : u32;
     dimInner : u32;
@@ -145,6 +148,8 @@ fn mm_readB(row : u32, col : u32) -> vec4<f32> {
 fn mm_write(row : u32, col : u32, value : vec4<f32>) {
     if (row < uniforms.dimAOuter && col < uniforms.dimBOuter)
     {
+        ${addBiasSnippet}
+        ${applyActivationSnippet}
         let index : u32 = col + row * uniforms.dimBOuter / 4u;
         resultMatrix.numbers[index] = value;
     }
@@ -155,13 +160,19 @@ let ColPerThread : u32 = 4u;
 let TileAOuter : u32 = 64u;
 let TileBOuter : u32 = 64u;
 let TileInner : u32 = 64u;`;
-const kMatMulVec4SharedArray1D = `
+}
+function getMatMulVec4SharedArray1D() {
+  return `
 var<workgroup> mm_Asub : array<vec4<f32>, 1024>;
 var<workgroup> mm_Bsub : array<vec4<f32>, 1024>;`;
-const kMatMulVec4SharedArray2D = `
+}
+function getMatMulVec4SharedArray2D() {
+  return `
 var<workgroup> mm_Asub : array<array<vec4<f32>, 16>, 64>;
 var<workgroup> mm_Bsub : array<array<vec4<f32>, 16>, 64>;`;
-const kMatMulVec4BodyPart1 = `
+}
+function getMatMulVec4BodyPart1() {
+  return `
 [[stage(compute), workgroup_size(16, 16, 1)]]
 fn main([[builtin(local_invocation_id)]] local_id : vec3<u32>,
         [[builtin(global_invocation_id)]] global_id  : vec3<u32>) {
@@ -194,7 +205,9 @@ fn main([[builtin(local_invocation_id)]] local_id : vec3<u32>,
         for (var innerRow : u32 = 0u; innerRow < RowPerThread; innerRow = innerRow + 1u) {
             let inputRow : u32 = tileRow + innerRow;
             let inputCol : u32 = tileCol;`;
-const kMatMulVec4BodyPart2Array1D = `
+}
+function getMatMulVec4BodyPart2Array1D() {
+  return `
             let index : u32 = inputRow * TileInner / ColPerThread + inputCol;
             mm_Asub[index] = mm_readA(globalRow + innerRow, globalColA);
         }
@@ -219,7 +232,9 @@ const kMatMulVec4BodyPart2Array1D = `
 
             for (var i : u32 = 0u; i < RowPerThread; i = i + 1u) {
                 ACached = mm_Asub[(tileRow + i) * (TileInner / ColPerThread) + k];`;
-const kMatMulVec4BodyPart2Array2D = `
+}
+function getMatMulVec4BodyPart2Array2D() {
+  return `
             mm_Asub[inputRow][inputCol] = mm_readA(globalRow + innerRow, globalColA);
         }
         globalColA = globalColA + TileInner / ColPerThread;
@@ -242,7 +257,9 @@ const kMatMulVec4BodyPart2Array2D = `
 
             for (var i : u32 = 0u; i < RowPerThread; i = i + 1u) {
                 ACached = mm_Asub[tileRow + i][k];`;
-const kMatMulVec4BodyPart3 = `
+}
+function getMatMulVec4BodyPart3() {
+  return `
                 acc[i] = BCached[0] * ACached.x + acc[i];
                 acc[i] = BCached[1] * ACached.y + acc[i];
                 acc[i] = BCached[2] * ACached.z + acc[i];
@@ -259,33 +276,36 @@ const kMatMulVec4BodyPart3 = `
                  acc[innerRow]);
     }
 }`;
-
-    export function makeMatMulPackedVec4WGSLSource(workPerThread: number[]): string {
-      console.log("makeMatMulPackedVec4WGSLSource");
-
-    /*
-const kMatMulVec4OneDimensionalSharedArray =
-    kMatMulVec4Header + kMatMulVec4SharedArray1D + kMatMulVec4BodyPart1 +
-    kMatMulVec4BodyPart2Array1D + kMatMulVec4BodyPart3;
-    */
-    console.log(kMatMulVec4SharedArray1D + kMatMulVec4BodyPart2Array1D);
-const kMatMulVec4TwoDimensionalSharedArray =
-    kMatMulVec4Header + kMatMulVec4SharedArray2D + kMatMulVec4BodyPart1 +
-    kMatMulVec4BodyPart2Array2D + kMatMulVec4BodyPart3;
-    return kMatMulVec4TwoDimensionalSharedArray;
 }
 
-export function makeMatMulVectorVec4WGSLSource(workPerThread: number[]): string {
-  console.log("makeMatMulPackedVec4WGSLSource");
+export function makeMatMulPackedVec4WGSLSource(addBiasSnippet: string, applyActivationSnippet: string, workPerThread: number[]):
+    string {
+  console.log('makeMatMulPackedVec4WGSLSource');
 
-
+  /*
 const kMatMulVec4OneDimensionalSharedArray =
-kMatMulVec4Header + kMatMulVec4SharedArray1D + kMatMulVec4BodyPart1 +
-kMatMulVec4BodyPart2Array1D + kMatMulVec4BodyPart3;
+  kMatMulVec4Header + kMatMulVec4SharedArray1D + kMatMulVec4BodyPart1 +
+  kMatMulVec4BodyPart2Array1D + kMatMulVec4BodyPart3;
+  */
+  console.log(getMatMulVec4BodyPart1());
+  const kMatMulVec4TwoDimensionalSharedArray = getMatMulVec4Header(addBiasSnippet, applyActivationSnippet) +
+      getMatMulVec4SharedArray2D() + getMatMulVec4BodyPart1() +
+      getMatMulVec4BodyPart2Array2D() + getMatMulVec4BodyPart3();
+  return kMatMulVec4TwoDimensionalSharedArray;
+}
 
-//console.log(kMatMulVec4SharedArray1D + kMatMulVec4BodyPart2Array1D);
+export function makeMatMulVectorVec4WGSLSource(
+    addBiasSnippet:string, applyActivationSnippet:string): string {
+  console.log('makeMatMulPackedVec4WGSLSource');
 
-return kMatMulVec4OneDimensionalSharedArray;
+
+  const kMatMulVec4OneDimensionalSharedArray = getMatMulVec4Header(addBiasSnippet, applyActivationSnippet) +
+      getMatMulVec4SharedArray1D() + getMatMulVec4BodyPart1() +
+      getMatMulVec4BodyPart2Array1D() + getMatMulVec4BodyPart3();
+
+  // console.log(kMatMulVec4SharedArray1D + kMatMulVec4BodyPart2Array1D);
+
+  return kMatMulVec4OneDimensionalSharedArray;
 }
 
 export function makeMatMulVectorVec4Source(): string {
@@ -426,41 +446,42 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
             vec4(0.0, 0.0, 0.0, 0.0)`;
     */
 
-    /*
+    //
     let activationSnippet = '', applyActivationSnippet = '';
     if (this.activation) {
       if (this.hasPreluActivationWeights) {
-        activationSnippet = `vec4 activation(vec4 a, ivec3 outCoord) {
+        activationSnippet =
+            `fn activation(a: vec4<f32>, outCoord :  vec3<i32>) -> vec4<f32>{
                   vec4 b = getPreluActivationWeightsAtOutCoords(outCoord);
                   ${this.activation}
                 }`;
       } else {
         activationSnippet = `
-                vec4 activation(vec4 a, ivec3 outCoord) {
+                fn activation(a : vec4<f32>, outCoord :  vec3<i32>) -> vec4<f32> {
                   ${this.activation}
                 }`;
       }
 
       applyActivationSnippet = 'value = activation(value, outCoord);';
     }
-    */
+    //
 
-    /*
+    
     const addBiasSnippet =
         this.addBias ? 'value += getBiasAtOutCoords(outCoord);' : '';
-    */
-
+    
     const userCode = `
-      //{activationSnippet}
+      ${activationSnippet}
       int dimAOuter = aShape[1];
       int dimInner = aShape[2];
       int dimBOuter = bShape[2];
       int batch;
 
       ${
-        this.outputShape[1] > 1 ?
-            makeMatMulPackedVec4WGSLSource([this.vecSize, this.workPerThread, 1]) :
-            makeMatMulVectorVec4Source()}
+        this.outputShape[1] > 1 ? makeMatMulPackedVec4WGSLSource(addBiasSnippet, applyActivationSnippet,
+                                      [this.vecSize, this.workPerThread, 1]) :
+                                  makeMatMulVectorVec4WGSLSource(
+                                      addBiasSnippet, applyActivationSnippet)}
     `;
     return userCode;
   }

@@ -96,7 +96,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
 
   getUserCode(): string {
     const elementsPerThread: [number, number, number] = [4, 4, 1];
-    const matMulSource = makeMatMulPackedVec4WGSLSource(elementsPerThread);
+    const matMulSource = makeMatMulPackedVec4WGSLSource("", "", elementsPerThread);
 
     // Below code only applys to valid padding type.
     const sampleAWithRemainder = `int flatIndex = getFlatIndex(coord, xShape);
@@ -172,12 +172,12 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     let activationSnippet = '', applyActivationSnippet = '';
     if (this.activation) {
       if (this.hasPreluActivationWeights) {
-        activationSnippet = `vec4 activation(vec4 a, ivec4 outCoord) {
-          vec4 b = getPreluActivationWeightsAtOutCoords(outCoord);
+        activationSnippet = `fn activation(a : vec4<f32>, outCoord : vec4<u32>) -> vec4<f32>{
+          let b: vec4<f32> = getPreluActivationWeightsAtOutCoords(outCoord);
           ${this.activation}
         }`;
       } else if (this.hasLeakyreluAlpha) {
-        activationSnippet = `vec4 activation(vec4 a) {
+        activationSnippet = `fn activation(a: vec4<f32>) ->vec4<f32> {
           vec4 b = getLeakyreluAlphaAtOutCoords();
           ${this.activation}
         }`;
@@ -192,31 +192,62 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
       applyActivationSnippet = `value = activation(value, outCoord);`;
     }
 
-    const addBiasSnippet = this.addBias ? 'ivec4 coords = getOutputCoords(); ' +
+    const addBiasSnippet = this.addBias ? 'let coords : vec4<u32>= getOutputCoords(); ' +
             'value += getBiasAtOutCoords(outCoord);' :
                                           '';
+
+    /*
+    fn mm_readA(row : u32, col : u32) -> vec4<f32>  {
+    if (row < uniforms.dimAOuter && col < uniforms.dimInner)
+    {
+        let result : vec4<f32> = firstMatrix.numbers[row * uniforms.dimInner / 4u + col];
+        return result;
+    }
+    return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+}
+
+fn mm_readB(row : u32, col : u32) -> vec4<f32> {
+    if (row < uniforms.dimInner && col < uniforms.dimBOuter)
+    {
+        let result : vec4<f32> = secondMatrix.numbers[row * uniforms.dimBOuter / 4u + col];
+        return result;
+    }
+    return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+}
+
+fn mm_write(row : u32, col : u32, value : vec4<f32>) {
+    if (row < uniforms.dimAOuter && col < uniforms.dimBOuter)
+    {
+        ${addBiasSnippet}
+        ${applyActivationSnippet}
+        let index : u32 = col + row * uniforms.dimBOuter / 4u;
+        resultMatrix.numbers[index] = value;
+    }
+}
+    
+    */
 
     const userCode = `
         ${activationSnippet}
         ${matMulSource}
 
-        int batch;
-        int dimAOuter = outShape[1] * outShape[2];
-        int dimBOuter = outShape[3];
-        int dimInner = filterDims[0] * filterDims[1] * xShape[3];
-        vec4 mm_readA(int row, int col) {
-          int r = int(row), c = int(col * 4);
+        var batch : u32;
+        var dimAOuter : u32 = outShape[1] * outShape[2];
+        var dimBOuter : u32 = outShape[3];
+        var dimInner : u32 = filterDims[0] * filterDims[1] * xShape[3];
+        fn mm_readA(row : u32, col : u32) -> vec4<f32> {
+          let r = u32(row), c = u32(col * 4);
           ${sampleA};
         }
 
-        vec4 mm_readB(int row, int col) {
+        fn mm_readB(row : u32, col : u32) -> vec4<f32> {
           return ${sampleB};
         }
 
-        void mm_write(int row, int col, vec4 value) {
+        fn mm_write(row : u32, col : u32, value : vec4<f32>) {
           if (row < dimAOuter && col * 4 < dimBOuter)
           {
-            ivec4 outCoord = ivec4(
+            let outCoord : vec4<u32> = vec4<u32>(
               batch,
               row / outShape[2],
               row % outShape[2],
@@ -228,8 +259,10 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
           }
         }
 
-        void main() {
-          batch = int(gl_GlobalInvocationID.z);
+        [[stage(compute), workgroup_size(16, 16, 1)]]
+fn main([[builtin(local_invocation_id)]] local_id : vec3<u32>,
+        [[builtin(global_invocation_id)]] global_id  : vec3<u32>) {
+          batch = int(global_id.z);
 
           mm_matMul(dimAOuter, dimInner, dimBOuter);
         }

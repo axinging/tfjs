@@ -119,8 +119,8 @@ export function getBinaryOpString(
   `;
     case BinaryOpType.PRELU:
       return useVec4 ? `
-      vec4 aLessThanZero = vec4(lessThan(a, vec4(0.)));
-      return (aLessThanZero * (b * a)) + ((vec4(1.0) - aLessThanZero) * a);
+      let aLessThanZero : vec4<f32> = vec4<f32>(a < vec4<f32>(0.));
+      return (aLessThanZero * (b * a)) + ((vec4<f32>(1.0) - aLessThanZero) * a);
     ` :
                        'return (a < 0.) ? b * a : a;';
     case BinaryOpType.MAX:
