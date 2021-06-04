@@ -19,7 +19,7 @@ import {backend_util, util} from '@tensorflow/tfjs-core';
 
 import {computeDispatch, tilesFitEvenlyIntoShape} from '../webgpu_util';
 
-import {makeMatMulPackedVec4Source} from './matmul_packed_vec4_webgpu';
+import {makeMatMulPackedVec4WGSLSource} from './matmul_packed_vec4_webgpu';
 import {WebGPUProgram} from './webgpu_program';
 
 export class Conv2DMMVec4Program implements WebGPUProgram {
@@ -30,6 +30,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
   variableNames = ['x', 'W'];
   uniforms = 'ivec2 filterDims, pad, stride, dilation;';
   workGroupSize: [number, number, number];
+  useWGSL = true;
   isVec4 = true;
   convInfo: backend_util.Conv2DInfo;
   addBias: boolean;
@@ -95,7 +96,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
 
   getUserCode(): string {
     const elementsPerThread: [number, number, number] = [4, 4, 1];
-    const matMulSource = makeMatMulPackedVec4Source(elementsPerThread);
+    const matMulSource = makeMatMulPackedVec4WGSLSource(elementsPerThread);
 
     // Below code only applys to valid padding type.
     const sampleAWithRemainder = `int flatIndex = getFlatIndex(coord, xShape);
