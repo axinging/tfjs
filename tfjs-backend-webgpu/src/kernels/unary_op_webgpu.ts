@@ -86,8 +86,8 @@ export class UnaryOpProgram implements WebGPUProgram {
     this.shaderKey = `unary_${op}`;
     this.size = util.sizeFromShape(this.outputShape);
   }
-  
-  getUserHeaderCode () :string {
+
+  getUserHeaderCode(): string {
     return `
     // float NAN; int aShape; int outShape; int outShapeStrides; int size; 
     [[block]] struct Uniforms {
@@ -96,18 +96,17 @@ export class UnaryOpProgram implements WebGPUProgram {
       outShape : u32;
       outShapeStrides : u32;
       size : u32; 
-  };
+    };
 
     [[block]] struct Matrix {
       numbers: array<f32>;
     };
-  
+
     [[group(0), binding(1)]] var<storage> A : [[access(read)]] Matrix;
-// [[group(0), binding(1)]] var<storage> secondMatrix : [[access(read)]] Matrix;
-[[group(0), binding(0)]] var<storage> result : [[access(write)]] Matrix;
- [[group(0), binding(2)]] var<uniform> uniforms : Uniforms;
+    [[group(0), binding(0)]] var<storage> result : [[access(write)]] Matrix;
+    [[group(0), binding(2)]] var<uniform> uniforms : Uniforms;
  `;
-  }  
+  }
 
   getUserCode(): string {
     return `

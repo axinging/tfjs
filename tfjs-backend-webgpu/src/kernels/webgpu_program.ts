@@ -75,15 +75,15 @@ export const compileProgram =
 
       let source;
       let module;
-      console.log("program.useWGSL="+program.useWGSL);
+      console.log('program.useWGSL=' + program.useWGSL);
       if (program.useWGSL) {
-        console.log("useWGSL");
+        console.log('useWGSL');
         source = shader_preprocessor_wgsl.makeShader(
-          inputsData, outputData, program, isFromPixel);
+            inputsData, outputData, program, isFromPixel);
         module = device.createShaderModule({code: source});
       } else {
         source = shader_preprocessor.makeShader(
-          inputsData, outputData, program, isFromPixel);
+            inputsData, outputData, program, isFromPixel);
         const result = glslang.compileGLSLZeroCopy(source, 'compute', false);
         if (result.data.length === 0) {
           throw new Error('Shader compilation failed');

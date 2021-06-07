@@ -110,7 +110,8 @@ export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
 }
 
 
-export function getMatMulVec4Header(addBiasSnippet: string, applyActivationSnippet: string) {
+export function getMatMulVec4Header(
+    addBiasSnippet: string, applyActivationSnippet: string) {
   return `
 fn mm_readA(row : u32, col : u32, global_id: vec3<u32>) -> vec4<f32>  {
     if (row < uniforms.dimAOuter && col < uniforms.dimInner)
@@ -267,8 +268,9 @@ function getMatMulVec4BodyPart3() {
 }`;
 }
 
-export function makeMatMulPackedVec4WGSLSource(addBiasSnippet: string, applyActivationSnippet: string, workPerThread: number[]):
-    string {
+export function makeMatMulPackedVec4WGSLSource(
+    addBiasSnippet: string, applyActivationSnippet: string,
+    workPerThread: number[]): string {
   console.log('makeMatMulPackedVec4WGSLSource');
 
   /*
@@ -276,18 +278,19 @@ const kMatMulVec4OneDimensionalSharedArray =
   kMatMulVec4Header + kMatMulVec4SharedArray1D + kMatMulVec4BodyPart1 +
   kMatMulVec4BodyPart2Array1D + kMatMulVec4BodyPart3;
   */
-  const kMatMulVec4TwoDimensionalSharedArray = // getMatMulVec4Header(addBiasSnippet, applyActivationSnippet) +
+  const kMatMulVec4TwoDimensionalSharedArray =  // getMatMulVec4Header(addBiasSnippet,
+                                                // applyActivationSnippet) +
       getMatMulVec4SharedArray2D() + getMatMulVec4BodyPart1() +
       getMatMulVec4BodyPart2Array2D() + getMatMulVec4BodyPart3();
   return kMatMulVec4TwoDimensionalSharedArray;
 }
 
 export function makeMatMulVectorVec4WGSLSource(
-    addBiasSnippet:string, applyActivationSnippet:string): string {
+    addBiasSnippet: string, applyActivationSnippet: string): string {
   console.log('makeMatMulPackedVec4WGSLSource');
 
-
-  const kMatMulVec4OneDimensionalSharedArray = // getMatMulVec4Header(addBiasSnippet, applyActivationSnippet) +
+  const kMatMulVec4OneDimensionalSharedArray =  // getMatMulVec4Header(addBiasSnippet,
+                                                // applyActivationSnippet) +
       getMatMulVec4SharedArray1D() + getMatMulVec4BodyPart1() +
       getMatMulVec4BodyPart2Array1D() + getMatMulVec4BodyPart3();
 
@@ -426,17 +429,16 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
       dimAOuter : u32;
       dimInner : u32;
       dimBOuter : u32;
-  };
-  [[block]] struct Matrix {
+    };
+    [[block]] struct Matrix {
       numbers: array<vec4<f32>>;
-  };
-  
-  [[group(0), binding(0)]] var<storage> firstMatrix : [[access(read)]] Matrix;
-  [[group(0), binding(1)]] var<storage> secondMatrix : [[access(read)]] Matrix;
-  [[group(0), binding(2)]] var<storage> resultMatrix : [[access(write)]] Matrix;
-  [[group(0), binding(3)]] var<uniform> uniforms : Uniforms;
+    };
+    
+    [[group(0), binding(0)]] var<storage> firstMatrix : [[access(read)]] Matrix;
+    [[group(0), binding(1)]] var<storage> secondMatrix : [[access(read)]] Matrix;
+    [[group(0), binding(2)]] var<storage> resultMatrix : [[access(write)]] Matrix;
+    [[group(0), binding(3)]] var<uniform> uniforms : Uniforms;
   `;
-  
   }
 
   getUserCode(): string {
@@ -472,12 +474,10 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
 
       applyActivationSnippet = 'value = activation(value, outCoord);';
     }
-    //
 
-    
     const addBiasSnippet =
         this.addBias ? 'value += getBiasAtOutCoords(outCoord);' : '';
-    
+
     const userCode = `
       ${activationSnippet}
       //int dimAOuter = aShape[1];
@@ -486,7 +486,8 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
       //int batch;
 
       ${
-        this.outputShape[1] > 1 ? makeMatMulPackedVec4WGSLSource(addBiasSnippet, applyActivationSnippet,
+        this.outputShape[1] > 1 ? makeMatMulPackedVec4WGSLSource(
+                                      addBiasSnippet, applyActivationSnippet,
                                       [this.vecSize, this.workPerThread, 1]) :
                                   makeMatMulVectorVec4WGSLSource(
                                       addBiasSnippet, applyActivationSnippet)}
