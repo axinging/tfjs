@@ -623,9 +623,7 @@ function generateGetCoordsFromFlatIndex(shape: number[]): string {
 
   const strides = util.computeStrides(shape);
   let dtype = getCoordsDataType(rank);
-  if (dtype == 'ivec4') {
-    dtype = 'vec4<u32>';
-  }
+
   const coords: string[] = [];
   for (let i = 0; i < rank; i++) {
     coords.push(`d${i}`);

@@ -110,59 +110,121 @@ export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
 }
 
 
-export function getMatMulVec4Header(
+export function getReadAndWriteCode(
     addBiasSnippet: string, applyActivationSnippet: string) {
   return `
-fn mm_readA(row : u32, col : u32, global_id: vec3<u32>) -> vec4<f32>  {
-    if (row < uniforms.dimAOuter && col < uniforms.dimInner)
-    {
-        let result : vec4<f32> = firstMatrix.numbers[row * uniforms.dimInner / 4u + col];
-        return result;
-    }
-    return vec4<f32>(0.0, 0.0, 0.0, 0.0);
-}
+  fn mm_readA(row : u32, col : u32, global_id: vec3<u32>) -> vec4<f32>  {
+      if (row < uniforms.dimAOuter && col < uniforms.dimInner)
+      {
+          let result : vec4<f32> = firstMatrix.numbers[row * uniforms.dimInner / 4u + col];
+          return result;
+      }
+      return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+  }
 
-fn mm_readB(row : u32, col : u32) -> vec4<f32> {
-    if (row < uniforms.dimInner && col < uniforms.dimBOuter)
-    {
-        let result : vec4<f32> = secondMatrix.numbers[row * uniforms.dimBOuter / 4u + col];
-        return result;
-    }
-    return vec4<f32>(0.0, 0.0, 0.0, 0.0);
-}
+  fn mm_readB(row : u32, col : u32) -> vec4<f32> {
+      if (row < uniforms.dimInner && col < uniforms.dimBOuter)
+      {
+          let result : vec4<f32> = secondMatrix.numbers[row * uniforms.dimBOuter / 4u + col];
+          return result;
+      }
+      return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+  }
 
-fn mm_write(row : u32, col : u32, value : vec4<f32>) {
-    if (row < uniforms.dimAOuter && col < uniforms.dimBOuter)
-    {
-        ${addBiasSnippet}
-        ${applyActivationSnippet}
-        let index : u32 = col + row * uniforms.dimBOuter / 4u;
-        resultMatrix.numbers[index] = value;
-    }
+  fn mm_write(row : u32, col : u32, value : vec4<f32>) {
+      if (row < uniforms.dimAOuter && col < uniforms.dimBOuter)
+      {
+          ${addBiasSnippet}
+          ${applyActivationSnippet}
+          let index : u32 = col + row * uniforms.dimBOuter / 4u;
+          resultMatrix.numbers[index] = value;
+      }
 }
 `;
 }
-function getMatMulVec4SharedArray1D() {
+function getSharedArray1DCode() {
   return `
-var<workgroup> mm_Asub : array<vec4<f32>, 1024>;
-var<workgroup> mm_Bsub : array<vec4<f32>, 1024>;`;
+  var<workgroup> mm_Asub : array<vec4<f32>, 1024>;
+  var<workgroup> mm_Bsub : array<vec4<f32>, 1024>;`;
 }
-function getMatMulVec4SharedArray2D() {
+function getSharedArray2DCode() {
   return `
-var<workgroup> mm_Asub : array<array<vec4<f32>, 16>, 64>;
-var<workgroup> mm_Bsub : array<array<vec4<f32>, 16>, 64>;`;
+  var<workgroup> mm_Asub : array<array<vec4<f32>, 16>, 64>;
+  var<workgroup> mm_Bsub : array<array<vec4<f32>, 16>, 64>;`;
 }
-function getMatMulVec4BodyPart1() {
-  return `
 
+function getA1DCode() {
+  return `
+  let index : u32 = inputRow * TileInner / ColPerThread + inputCol;
+  mm_Asub[index] = mm_readA(globalRow + innerRow, globalColA, global_id);`;
+}
+
+function getA2DCode() {
+  return `
+  mm_Asub[inputRow][inputCol] = mm_readA(globalRow + innerRow, globalColA, global_id);`;
+}
+
+function getB1DCode() {
+  return `
+  let index : u32 = inputRow * TileBOuter / ColPerThread + inputCol;
+  mm_Bsub[index] = mm_readB(t * TileInner + inputRow, globalCol);`;
+}
+
+function getB2DCode() {
+  return `
+  mm_Bsub[inputRow][inputCol] = mm_readB(t * TileInner + inputRow, globalCol);`;
+}
+
+function computeAcc1DCode() {
+  return `
+  // Compute acc values for a single thread.
+  for (var k : u32 = 0u; k < TileInner / ColPerThread; k = k + 1u) {
+      BCached[0] = mm_Bsub[(k * ColPerThread) * (TileBOuter / ColPerThread) + tileCol];
+      BCached[1] = mm_Bsub[(k * ColPerThread + 1u) * (TileBOuter / ColPerThread) + tileCol];
+      BCached[2] = mm_Bsub[(k * ColPerThread + 2u) * (TileBOuter / ColPerThread) + tileCol];
+      BCached[3] = mm_Bsub[(k * ColPerThread + 3u) * (TileBOuter / ColPerThread) + tileCol];
+
+      for (var i : u32 = 0u; i < RowPerThread; i = i + 1u) {
+          ACached = mm_Asub[(tileRow + i) * (TileInner / ColPerThread) + k];
+
+
+          acc[i] = BCached[0] * ACached.x + acc[i];
+          acc[i] = BCached[1] * ACached.y + acc[i];
+          acc[i] = BCached[2] * ACached.z + acc[i];
+          acc[i] = BCached[3] * ACached.w + acc[i];
+      }
+  }`;
+}
+
+function computeAcc2DCode() {
+  return `
+  // Compute acc values for a single thread.
+  for (var k : u32 = 0u; k < TileInner / ColPerThread; k = k + 1u) {
+      BCached[0] = mm_Bsub[k * ColPerThread][tileCol];
+      BCached[1] = mm_Bsub[k * ColPerThread + 1u][tileCol];
+      BCached[2] = mm_Bsub[k * ColPerThread + 2u][tileCol];
+      BCached[3] = mm_Bsub[k * ColPerThread + 3u][tileCol];
+
+      for (var i : u32 = 0u; i < RowPerThread; i = i + 1u) {
+          ACached = mm_Asub[tileRow + i][k];
+          acc[i] = BCached[0] * ACached.x + acc[i];
+          acc[i] = BCached[1] * ACached.y + acc[i];
+          acc[i] = BCached[2] * ACached.z + acc[i];
+          acc[i] = BCached[3] * ACached.w + acc[i];
+      }
+  }`;
+}
+
+function getMainCode(getA: string, getB: string, computeAcc: string) {
+  return `
   let RowPerThread : u32 = 4u;
   let ColPerThread : u32 = 4u;
   let TileAOuter : u32 = 64u;
   let TileBOuter : u32 = 64u;
   let TileInner : u32 = 64u;
 
-[[stage(compute), workgroup_size(16, 16, 1)]]
-fn main([[builtin(local_invocation_id)]] local_id : vec3<u32>,
+  [[stage(compute), workgroup_size(16, 16, 1)]]
+  fn main([[builtin(local_invocation_id)]] local_id : vec3<u32>,
         [[builtin(global_invocation_id)]] global_id  : vec3<u32>) {
 
     let tileRow : u32 = local_id.y * RowPerThread;
@@ -194,12 +256,8 @@ fn main([[builtin(local_invocation_id)]] local_id : vec3<u32>,
         // Load one tile of A into local memory.
         for (var innerRow : u32 = 0u; innerRow < RowPerThread; innerRow = innerRow + 1u) {
             let inputRow : u32 = tileRow + innerRow;
-            let inputCol : u32 = tileCol;`;
-}
-function getMatMulVec4BodyPart2Array1D() {
-  return `
-            let index : u32 = inputRow * TileInner / ColPerThread + inputCol;
-            mm_Asub[index] = mm_readA(globalRow + innerRow, globalColA, global_id);
+            let inputCol : u32 = tileCol;
+            ${getA}
         }
         globalColA = globalColA + TileInner / ColPerThread;
 
@@ -207,55 +265,12 @@ function getMatMulVec4BodyPart2Array1D() {
         for (var innerRow : u32 = 0u; innerRow < RowPerThreadB; innerRow = innerRow + 1u) {
             let inputRow : u32 = tileRowB + innerRow;
             let inputCol : u32 = tileCol;
-            let index : u32 = inputRow * TileBOuter / ColPerThread + inputCol;
-            mm_Bsub[index] = mm_readB(t * TileInner + inputRow, globalCol);;
+            ${getB}
         }
 
         workgroupBarrier();
 
-        // Compute acc values for a single thread.
-        for (var k : u32 = 0u; k < TileInner / ColPerThread; k = k + 1u) {
-            BCached[0] = mm_Bsub[(k * ColPerThread) * (TileBOuter / ColPerThread) + tileCol];
-            BCached[1] = mm_Bsub[(k * ColPerThread + 1u) * (TileBOuter / ColPerThread) + tileCol];
-            BCached[2] = mm_Bsub[(k * ColPerThread + 2u) * (TileBOuter / ColPerThread) + tileCol];
-            BCached[3] = mm_Bsub[(k * ColPerThread + 3u) * (TileBOuter / ColPerThread) + tileCol];
-
-            for (var i : u32 = 0u; i < RowPerThread; i = i + 1u) {
-                ACached = mm_Asub[(tileRow + i) * (TileInner / ColPerThread) + k];`;
-}
-function getMatMulVec4BodyPart2Array2D() {
-  return `
-            mm_Asub[inputRow][inputCol] = mm_readA(globalRow + innerRow, globalColA, global_id);
-        }
-        globalColA = globalColA + TileInner / ColPerThread;
-
-        // Load one tile of B into local memory.
-        for (var innerRow : u32 = 0u; innerRow < RowPerThreadB; innerRow = innerRow + 1u) {
-            let inputRow : u32 = tileRowB + innerRow;
-            let inputCol : u32 = tileCol;
-            mm_Bsub[inputRow][inputCol] = mm_readB(t * TileInner + inputRow, globalCol);;
-        }
-
-        workgroupBarrier();
-
-        // Compute acc values for a single thread.
-        for (var k : u32 = 0u; k < TileInner / ColPerThread; k = k + 1u) {
-            BCached[0] = mm_Bsub[k * ColPerThread][tileCol];
-            BCached[1] = mm_Bsub[k * ColPerThread + 1u][tileCol];
-            BCached[2] = mm_Bsub[k * ColPerThread + 2u][tileCol];
-            BCached[3] = mm_Bsub[k * ColPerThread + 3u][tileCol];
-
-            for (var i : u32 = 0u; i < RowPerThread; i = i + 1u) {
-                ACached = mm_Asub[tileRow + i][k];`;
-}
-function getMatMulVec4BodyPart3() {
-  return `
-                acc[i] = BCached[0] * ACached.x + acc[i];
-                acc[i] = BCached[1] * ACached.y + acc[i];
-                acc[i] = BCached[2] * ACached.z + acc[i];
-                acc[i] = BCached[3] * ACached.w + acc[i];
-            }
-        }
+        ${computeAcc}
 
         workgroupBarrier();
     }
@@ -273,15 +288,8 @@ export function makeMatMulPackedVec4WGSLSource(
     workPerThread: number[]): string {
   console.log('makeMatMulPackedVec4WGSLSource');
 
-  /*
-const kMatMulVec4OneDimensionalSharedArray =
-  kMatMulVec4Header + kMatMulVec4SharedArray1D + kMatMulVec4BodyPart1 +
-  kMatMulVec4BodyPart2Array1D + kMatMulVec4BodyPart3;
-  */
-  const kMatMulVec4TwoDimensionalSharedArray =  // getMatMulVec4Header(addBiasSnippet,
-                                                // applyActivationSnippet) +
-      getMatMulVec4SharedArray2D() + getMatMulVec4BodyPart1() +
-      getMatMulVec4BodyPart2Array2D() + getMatMulVec4BodyPart3();
+  const kMatMulVec4TwoDimensionalSharedArray = getSharedArray2DCode() +
+      getMainCode(getA2DCode(), getB2DCode(), computeAcc2DCode());
   return kMatMulVec4TwoDimensionalSharedArray;
 }
 
@@ -289,15 +297,12 @@ export function makeMatMulVectorVec4WGSLSource(
     addBiasSnippet: string, applyActivationSnippet: string): string {
   console.log('makeMatMulPackedVec4WGSLSource');
 
-  const kMatMulVec4OneDimensionalSharedArray =  // getMatMulVec4Header(addBiasSnippet,
-                                                // applyActivationSnippet) +
-      getMatMulVec4SharedArray1D() + getMatMulVec4BodyPart1() +
-      getMatMulVec4BodyPart2Array1D() + getMatMulVec4BodyPart3();
-
-  // console.log(kMatMulVec4SharedArray1D + kMatMulVec4BodyPart2Array1D);
+  const kMatMulVec4OneDimensionalSharedArray = getSharedArray1DCode() +
+      getMainCode(getA1DCode(), getB1DCode(), computeAcc1DCode());
 
   return kMatMulVec4OneDimensionalSharedArray;
 }
+
 
 export function makeMatMulVectorVec4Source(): string {
   return `
@@ -401,6 +406,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     this.hasPreluActivationWeights = hasPreluActivationWeights;
 
     [this.fitA, this.fitB] = this.getShapeFit();
+    console.log('MatMulPackedVec4Program');
 
     this.shaderKey = `matMulPackedVec4_${rowPerThread}_${activation}_${
         this.fitA}_${this.fitB}_${this.outputShape[1] > 1}`;
