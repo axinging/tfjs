@@ -80,9 +80,6 @@ export function makeShader(
     ].join('\n');
   }
   /*
-  const prefixSnippets: string[] = [];
-
-
   if (program.workGroupSize != null) {
     prefixSnippets.push(`
       layout (local_size_x = ${program.workGroupSize[0]},
@@ -90,67 +87,23 @@ export function makeShader(
               local_size_z = ${program.workGroupSize[2]}) in;
     `);
   }
-
-  // Output buffer.
-  prefixSnippets.push(`
-    layout(std430, set = 0, binding = 0) writeonly buffer ssbOut {
-      ${mapToGlslTypes(outputData.dtype, program.isVec4)} result[];
-    };
-  `);
-
-  program.variableNames.forEach((x, i) => {
-    prefixSnippets.push(`
-      layout(std430, set = 0, binding = ${1 + i}) readonly buffer ssb${x} {
-        ${mapToGlslTypes(inputInfo[i].dtype, program.isVec4)} ${x}[];
-      };
-    `);
-  });
-
-  let uniformDeclaration = 'float NAN; ';
-  program.variableNames.forEach((x, i) => {
-    uniformDeclaration += `${getCoordsDataType(inputInfo[i].shape.length)} ${
-        x.charAt(0).toLowerCase() + x.slice(1)}Shape; `;
-  });
-  uniformDeclaration +=
-      `${getCoordsDataType(outputData.shape.length)} outShape; `;
-  const stridesLength = outputData.shape.length - 1;
-  uniformDeclaration += `${getCoordsDataType(stridesLength)}
-  uniforms.outShapeStrides; `;
-
-  if (program.size != null) {
-    uniformDeclaration += 'int size; ';
-  }
-
-  if (program.uniforms) {
-    uniformDeclaration += program.uniforms;
-  }
-
-
-  if (uniformDeclaration !== '') {
-    prefixSnippets.push(`
-        layout(std140, set = 0, binding = ${
-        1 + program.variableNames.length}) uniform Uniforms {
-            ${uniformDeclaration}
-        };
-    `);
-  }
   */
 
-  /*
-    [[block]] struct Uniforms {
-      NAN : u32;
-      xShape : vec4<u32>;
-      wShape : vec4<u32>;
-      biasShape : u32;
-      preluActivationWeightsShape : u32; 
-      outShape : vec4<u32>;
-      outShapeStrides : vec3<u32>;
-      filterDims : vec2<u32>; 
-      pad : vec2<u32>; 
-      stride : vec2<u32>; 
-      dilation : vec2<u32>; 
+
+/*
+
+    [[block]] struct Matrix {
+      numbers: array<vec4<f32>>;
     };
-  */
+  
+    [[group(0), binding(0)]] var<storage> result : [[access(write)]] Matrix;
+    [[group(0), binding(1)]] var<storage> x : [[access(read)]] Matrix;
+    [[group(0), binding(2)]] var<storage> W : [[access(read)]] Matrix;
+    [[group(0), binding(3)]] var<storage> bias : [[access(read)]] Matrix;
+    [[group(0), binding(4)]] var<storage> preluActivationWeights : [[access(read)]] Matrix;
+    [[group(0), binding(5)]] var<uniform> uniforms : Uniforms;
+*/
+  const prefixSnippets: string[] = [];
 
   let uniformDeclaration = '[[block]] struct Uniforms { NAN : u32; ';
   program.variableNames.forEach((x, i) => {
@@ -171,18 +124,54 @@ export function makeShader(
     uniformDeclaration += program.uniformsWgsl;
   }
   uniformDeclaration += '};';
-/*
+
+  prefixSnippets.push(uniformDeclaration);
+
+  // Output buffer.
+  prefixSnippets.push(`
+    [[block]] struct Matrix {
+        numbers: array<vec4<f32>>;
+    };
+
+    [[group(0), binding(0)]] var<storage> result : [[access(write)]] Matrix;
+  `);
+
+  program.variableNames.forEach((x, i) => {
+    prefixSnippets.push(`
+    [[group(0), binding(${1 + i})]] var<storage> ${x} : [[access(read)]] Matrix;
+    `);
+  });
+
+
+
+
+
+  /*
+    [[block]] struct Uniforms {
+      NAN : u32;
+      xShape : vec4<u32>;
+      wShape : vec4<u32>;
+      biasShape : u32;
+      preluActivationWeightsShape : u32; 
+      outShape : vec4<u32>;
+      outShapeStrides : vec3<u32>;
+      filterDims : vec2<u32>; 
+      pad : vec2<u32>; 
+      stride : vec2<u32>; 
+      dilation : vec2<u32>; 
+    };
+  */
+
+
+
   if (uniformDeclaration !== '') {
     prefixSnippets.push(`
-        layout(std140, set = 0, binding = ${
-        1 + program.variableNames.length}) uniform Uniforms {
-            ${uniformDeclaration}
-        };
+    [[group(0), binding(${
+        1 + program.variableNames.length})]] var<uniform> uniforms : Uniforms;
     `);
   }
-*/
 
-  // prefixSnippets.push(getGlslDifferences().defineSpecialNaN);
+
 
   const [getOutputCoords, dispatchLayoutRank] =
       generateGetOutputCoords(outputData.shape, program.dispatchLayout);
@@ -196,7 +185,7 @@ export function makeShader(
   */
 
   const sources = [
-    SHADER_PREFIX,uniformDeclaration, program.getUserHeaderCode(), SAMPLING_SNIPPETS, getCoords,
+    SHADER_PREFIX, prefixSnippets.join('\n'),, program.getUserHeaderCode(), SAMPLING_SNIPPETS, getCoords,
     getOutputCoords,
     getSetOutputSnippet(outputData.shape, outputData.dtype, program.isVec4)
   ];
@@ -430,7 +419,6 @@ function getSamplerFromInInfo(inInfo: InputInfo, isVec4: boolean): string {
 
   const shapeStr =
       `uniforms.${texName.charAt(0).toLowerCase() + texName.slice(1)}Shape`;
-  console.log('rank=' + rank);
   let rankStr = '';
   if (rank == 4) rankStr = '4';
 
@@ -542,8 +530,6 @@ export function getSamplerAtOutputCoords(
       unpackedCoordsSnippet = 'coords';
     }
   }
-
-  console.log('outRank=' + outRank + ', inRank=' + inRank);
 
   const shapeStr =
       `uniforms.${texName.charAt(0).toLowerCase() + texName.slice(1)}Shape`;

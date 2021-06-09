@@ -262,16 +262,6 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     //  float NAN; ivec4 xShape; ivec4 wShape; int biasShape; int preluActivationWeightsShape; ivec4 outShape; ivec3 outShapeStrides; ivec2 filterDims, pad, stride, dilation;
     return `
     // float NAN; int aShape; int outShape; int outShapeStrides; int size; 
-    [[block]] struct Matrix {
-      numbers: array<vec4<f32>>;
-    };
-  
-    [[group(0), binding(0)]] var<storage> result : [[access(write)]] Matrix;
-    [[group(0), binding(1)]] var<storage> x : [[access(read)]] Matrix;
-    [[group(0), binding(2)]] var<storage> W : [[access(read)]] Matrix;
-    [[group(0), binding(3)]] var<storage> bias : [[access(read)]] Matrix;
-    [[group(0), binding(4)]] var<storage> preluActivationWeights : [[access(read)]] Matrix;
-    [[group(0), binding(5)]] var<uniform> uniforms : Uniforms;
  `;
   }
 
