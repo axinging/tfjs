@@ -55,6 +55,7 @@ interface ProgramParams {
   isVec4?: boolean;
   size?: number;
   getUserCode: () => string;
+  getUserWGSLCode?: () => string;
   getUserHeaderCode?: () => string;
 }
 
@@ -74,7 +75,7 @@ export function makeShader(
   if (isFromPixel === true) {
     const getCoords = generateGetCoordsFromFlatIndex(outputData.shape);
     return [
-      SHADER_PREFIX, outputBufferStr, program.getUserCode(), getCoords
+      SHADER_PREFIX, outputBufferStr, program.getUserWGSLCode(), getCoords
     ].join('\n');
   }
   /*
@@ -167,7 +168,7 @@ export function makeShader(
     sources.push(inputSamplingSnippet);
   }
 
-  sources.push(program.getUserCode());
+  sources.push(program.getUserWGSLCode());
   // const source = program.getUserCode();
   const source = sources.join('\n');
   return source;

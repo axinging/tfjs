@@ -89,7 +89,7 @@ export const compileProgram =
           throw new Error('Shader compilation failed');
         }
         result.free();
-        module = device.createShaderModule({code: source});
+        module = device.createShaderModule({code: result.data});
       }
       const pipeline = device.createComputePipeline(
           {layout: pipelineLayout, compute: {module, entryPoint: 'main'}});

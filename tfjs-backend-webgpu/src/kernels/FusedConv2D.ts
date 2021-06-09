@@ -73,7 +73,7 @@ export function fusedConv2d(args: {
   const useVec4 =
       convInfo.inChannels % 4 === 0 && convInfo.outChannels % 4 === 0;
   const packed = !useNaive && useVec4;
-  const fusedActivation = activation ?
+  let fusedActivation = activation ?
       backend.mapActivationToShaderProgram(activation, packed) :
       null;
 
@@ -82,6 +82,9 @@ export function fusedConv2d(args: {
     program = new Conv2DNaiveProgram(
         convInfo, hasBias, fusedActivation, hasPreluActivationWeights);
   } else if (useVec4) {
+    fusedActivation = activation ?
+      backend.mapActivationToShaderProgramWGSL(activation, packed) :
+      null;
     program = new Conv2DMMVec4Program(
         convInfo, hasBias, fusedActivation, hasPreluActivationWeights);
   } else {

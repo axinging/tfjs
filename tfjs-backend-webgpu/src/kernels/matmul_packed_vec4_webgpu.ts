@@ -428,6 +428,80 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     ];
   }
 
+  getUserCode(): string {
+    const sampleA = this.fitA ?
+        `A[batch * batchASize + row * dimInner / 4 + col]` :
+        `coordsInBounds(ivec2(row, col * 4), ivec2(dimAOuter, dimInner)) ?
+            A[batch * batchASize + row * dimInner / 4 + col] :
+            vec4(0.0, 0.0, 0.0, 0.0)`;
+
+    const sampleB = this.fitB ?
+        `B[batch * batchBSize + row * dimBOuter / 4 + col]` :
+        `coordsInBounds(ivec2(row, col * 4), ivec2(dimInner, dimBOuter)) ?
+            B[batch * batchBSize + row * dimBOuter / 4 + col] :
+            vec4(0.0, 0.0, 0.0, 0.0)`;
+
+    let activationSnippet = '', applyActivationSnippet = '';
+    if (this.activation) {
+      if (this.hasPreluActivationWeights) {
+        activationSnippet = `vec4 activation(vec4 a, ivec3 outCoord) {
+                  vec4 b = getPreluActivationWeightsAtOutCoords(outCoord);
+                  ${this.activation}
+                }`;
+      } else {
+        activationSnippet = `
+                vec4 activation(vec4 a, ivec3 outCoord) {
+                  ${this.activation}
+                }`;
+      }
+
+      applyActivationSnippet = 'value = activation(value, outCoord);';
+    }
+
+    const addBiasSnippet =
+        this.addBias ? 'value += getBiasAtOutCoords(outCoord);' : '';
+
+    const userCode = `
+      ${activationSnippet}
+      int dimAOuter = aShape[1];
+      int dimInner = aShape[2];
+      int dimBOuter = bShape[2];
+      int batch;
+
+      ${
+        this.outputShape[1] > 1 ?
+            makeMatMulPackedVec4Source([this.vecSize, this.workPerThread, 1]) :
+            makeMatMulVectorVec4Source()}
+
+      vec4 mm_readA(int row, int col) {
+        int batchASize = aShape[1] * aShape[2] / ${this.vecSize};
+        return ${sampleA};
+      }
+
+      vec4 mm_readB(int row, int col) {
+        // TODO: This is not covered in unit tests.
+        int batchBSize = bShape[1] * bShape[2] / ${this.vecSize};
+        return ${sampleB};
+      }
+
+      void mm_write(int row, int col, vec4 value) {
+        if (row < dimAOuter && col * 4 < dimBOuter)
+        {
+          ivec3 outCoord = ivec3(batch, row, col * 4);
+          ${addBiasSnippet}
+          ${applyActivationSnippet}
+          setOutput(outCoord[0], outCoord[1], outCoord[2], value);
+        }
+      }
+
+      void main() {
+        batch = int(gl_GlobalInvocationID.z);
+        mm_matMul(dimAOuter, dimInner, dimBOuter);
+      }
+    `;
+    return userCode;
+  }
+
   // v1
   getUserHeaderCode(): string {
     return `
@@ -447,7 +521,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
   `;
   }
 
-  getUserCode(): string {
+  getUserWGSLCode(): string {
     /*
     const sampleA = this.fitA ?
         `A[batch * batchASize + row * dimInner / 4 + col]` :

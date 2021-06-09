@@ -24,6 +24,7 @@ export const RELU = 'return max(a, 0.0);';
 export const RELU6 = 'return clamp(a, 0.0, 6.0);';
 export const LINEAR = `return a;`;
 export const ELU = `return (a >= 0.0) ? a : (exp(a) - 1.0);`;
+export const ELU_WGSL = `if (a >= 0.0) { return a; }  return (exp(a) - 1.0);`;
 export const PRELU = `return (a < 0.) ? b * a : a;`;
 
 export const ELU_VEC4 = `
@@ -87,6 +88,23 @@ export class UnaryOpProgram implements WebGPUProgram {
     this.size = util.sizeFromShape(this.outputShape);
   }
 
+  getUserCode(): string {
+    return `
+      float unaryOperation(float a) {
+        ${this.op}
+      }
+
+      void main() {
+        int index = int(gl_GlobalInvocationID.x);
+        if (index < size)
+        {
+          float a = getAAtOutCoords();
+          setOutput(index, unaryOperation(a));
+        }
+      }
+      `;
+  }
+
   getUserHeaderCode(): string {
     return `
     // float NAN; int aShape; int outShape; int outShapeStrides; int size; 
@@ -108,7 +126,7 @@ export class UnaryOpProgram implements WebGPUProgram {
  `;
   }
 
-  getUserCode(): string {
+  getUserWGSLCode(): string {
     return `
       fn unaryOperation(a : f32) -> f32{
         ${this.op}
