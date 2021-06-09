@@ -128,9 +128,16 @@ export function makeShader(
   prefixSnippets.push(uniformDeclaration);
 
   // Output buffer.
+  let bufferTypeStr = '';
+  if (program.isVec4) {
+    bufferTypeStr = 'vec4<f32>';
+  } else {
+    bufferTypeStr = 'f32';
+  }
+
   prefixSnippets.push(`
     [[block]] struct Matrix {
-        numbers: array<vec4<f32>>;
+        numbers: array<${bufferTypeStr}>;
     };
 
     [[group(0), binding(0)]] var<storage> result : [[access(write)]] Matrix;

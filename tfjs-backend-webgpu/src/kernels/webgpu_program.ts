@@ -76,7 +76,6 @@ export const compileProgram =
 
       let source;
       let module;
-      console.log('program.useWGSL=' + program.useWGSL);
       if (program.useWGSL) {
         console.log('useWGSL');
         source = shader_preprocessor_wgsl.makeShader(
