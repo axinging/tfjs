@@ -128,27 +128,19 @@ export function makeShader(
   prefixSnippets.push(uniformDeclaration);
 
   // Output buffer.
-  //let bufferTypeStr = '';
-  const wgslType = mapToGlslTypes(outputData.dtype, program.isVec4);
-  /*
-  if (program.isVec4) {
-    bufferTypeStr = wgslType;//'vec4<$f32>';
-  } else {
-    bufferTypeStr = 'f32';
-  }
-  */
-
   prefixSnippets.push(`
-    [[block]] struct Matrix {
-        numbers: array<${wgslType}>;
+    [[block]] struct Matrix0 {
+        numbers: array<${mapToGlslTypes(outputData.dtype, program.isVec4)}>;
     };
 
-    [[group(0), binding(0)]] var<storage> result : [[access(write)]] Matrix;
+    [[group(0), binding(0)]] var<storage> result : [[access(write)]] Matrix0;
   `);
-
-  program.variableNames.forEach((x, i) => {
+  program.variableNames.forEach((x, i) => {   
     prefixSnippets.push(`
-    [[group(0), binding(${1 + i})]] var<storage> ${x} : [[access(read)]] Matrix;
+    [[block]] struct Matrix${1 + i} {
+      numbers: array<${mapToGlslTypes(inputInfo[i].dtype, program.isVec4)}>;
+    };
+    [[group(0), binding(${1 + i})]] var<storage> ${x} : [[access(read)]] Matrix${1 + i};
     `);
   });
 
