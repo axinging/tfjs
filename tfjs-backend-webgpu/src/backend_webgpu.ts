@@ -868,7 +868,7 @@ export class WebGPUBackend extends KernelBackend {
     if (activation === 'linear') {
       return unary_op.LINEAR;
     } else if (activation === 'relu') {
-      return packed ? unary_op.RELU_VEC4 : unary_op.RELU;
+      return packed ? unary_op.RELU_VEC4_WGSL : unary_op.RELU_WGSL;
     } else if (activation === 'elu') {
       return packed ? unary_op.ELU_VEC4 : unary_op.ELU;
     } else if (activation === 'relu6') {

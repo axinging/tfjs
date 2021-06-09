@@ -21,6 +21,7 @@ import {computeDispatch, flatDispatchLayout} from '../webgpu_util';
 import {WebGPUProgram} from './webgpu_program';
 
 export const RELU = 'return max(a, 0.0);';
+export const RELU_WGSL = 'return max(a, 0.0);';
 export const RELU6 = 'return clamp(a, 0.0, 6.0);';
 export const LINEAR = `return a;`;
 export const ELU = `return (a >= 0.0) ? a : (exp(a) - 1.0);`;
@@ -49,6 +50,33 @@ export const RELU_VEC4 = `
 
   return result;
 `;
+
+export const RELU_VEC4_WGSL = `
+  var resBool : vec4<bool> = vec4<bool>(a >= vec4<f32>(0., 0., 0., 0.));
+  let isNaN : vec4<bool> = isNan(a);
+  var resFloat : vec4<f32> = vec4<f32>(0., 0., 0., 0.); 
+
+  for (var i:u32 = 0u; i< 4u; i = i+1u ) {
+    if (resBool[i]) {
+      resFloat[i] = 1.0;
+    }
+  }
+  resFloat = a * resFloat;
+  if (isNaN.r) {
+  	resFloat.r = a.r;
+  }
+  if (isNaN.g) {
+  	resFloat.g = a.g;
+  }
+  if (isNaN.b) {
+  	resFloat.b = a.b;
+  }
+  if (isNaN.a) {
+  	resFloat.a = a.a;
+  }
+  return resFloat;
+`;
+
 
 export const SIGMOID = `return 1.0 / (1.0 + exp(-1.0 * a));`;
 export const ABS = `return abs(a);`;

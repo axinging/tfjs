@@ -388,7 +388,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
         throw new Error('Leakyrelu is not supported.');
       } else {
         activationSnippet = `
-        fn activation(a : vec4<f32>, outCoord : vec4<i32>) -> vec4<f32>{
+        fn activation(a : vec4<f32>, outCoord : vec4<u32>) -> vec4<f32>{
           ${this.activation}
         }`;
       }
