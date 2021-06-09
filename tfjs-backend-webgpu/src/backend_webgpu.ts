@@ -872,7 +872,7 @@ export class WebGPUBackend extends KernelBackend {
     } else if (activation === 'elu') {
       return packed ? unary_op.ELU_VEC4 : unary_op.ELU;
     } else if (activation === 'relu6') {
-      return unary_op.RELU6;
+      return packed ? unary_op.RELU6_VEC4_WGSL :  unary_op.RELU6;
     } else if (activation === 'prelu') {
       return getBinaryOpStringWGSL(BinaryOpType.PRELU, packed);
     } else if (activation === 'sigmoid') {

@@ -23,6 +23,7 @@ import {WebGPUProgram} from './webgpu_program';
 export const RELU = 'return max(a, 0.0);';
 export const RELU_WGSL = 'return max(a, 0.0);';
 export const RELU6 = 'return clamp(a, 0.0, 6.0);';
+export const RELU6_VEC4_WGSL = 'return clamp(a, vec4<f32>(0., 0., 0., 0.), vec4<f32>(6., 6., 6., 6.));';
 export const LINEAR = `return a;`;
 export const ELU = `return (a >= 0.0) ? a : (exp(a) - 1.0);`;
 export const ELU_WGSL = `if (a >= 0.0) { return a; }  return (exp(a) - 1.0);`;
@@ -78,7 +79,7 @@ export const RELU_VEC4_WGSL = `
 `;
 
 
-export const SIGMOID = `return { 1.0 / (1.0 + exp(-1.0 * a)); }`;
+export const SIGMOID = `return 1.0 / (1.0 + exp(-1.0 * a));`;
 export const ABS = `return abs(a);`;
 export const SQUARE = `return a * a;`;
 export const NEG = `return -a;`;
