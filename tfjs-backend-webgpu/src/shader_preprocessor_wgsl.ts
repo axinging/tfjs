@@ -545,6 +545,7 @@ export function getSamplerAtOutputCoords(
   const shapeStr =
       `uniforms.${texName.charAt(0).toLowerCase() + texName.slice(1)}Shape`;
   let rankStr = `${inRank}`;
+  // TODO(WGSL): remove this.
   if (inRank == 0) rankStr = '1';
   if (isVec4) {
     return `
