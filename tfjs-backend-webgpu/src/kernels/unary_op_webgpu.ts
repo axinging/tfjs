@@ -136,14 +136,6 @@ export class UnaryOpProgram implements WebGPUProgram {
   getUserHeaderCode(): string {
     return `
     // float NAN; int aShape; int outShape; int outShapeStrides; int size; 
-    [[block]] struct Uniforms {
-      NAN : u32;
-      aShape : u32;
-      outShape : u32;
-      outShapeStrides : u32;
-      size : u32; 
-    };
-
     [[block]] struct Matrix {
       numbers: array<f32>;
     };

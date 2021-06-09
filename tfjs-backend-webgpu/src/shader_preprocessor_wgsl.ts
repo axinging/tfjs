@@ -52,6 +52,7 @@ interface ProgramParams {
   workGroupSize?: [number, number, number];
   variableNames: string[];
   uniforms?: string;
+  uniformsWgsl?: string;
   isVec4?: boolean;
   size?: number;
   getUserCode: () => string;
@@ -135,6 +136,51 @@ export function makeShader(
   }
   */
 
+  /*
+    [[block]] struct Uniforms {
+      NAN : u32;
+      xShape : vec4<u32>;
+      wShape : vec4<u32>;
+      biasShape : u32;
+      preluActivationWeightsShape : u32; 
+      outShape : vec4<u32>;
+      outShapeStrides : vec3<u32>;
+      filterDims : vec2<u32>; 
+      pad : vec2<u32>; 
+      stride : vec2<u32>; 
+      dilation : vec2<u32>; 
+    };
+  */
+
+  let uniformDeclaration = '[[block]] struct Uniforms { NAN : u32; ';
+  program.variableNames.forEach((x, i) => {
+    uniformDeclaration += `${
+        x.charAt(0).toLowerCase() + x.slice(1)}Shape : ${getCoordsDataType(inputInfo[i].shape.length)}; `;
+  });
+  uniformDeclaration +=
+      `outShape : ${getCoordsDataType(outputData.shape.length)} ; `;
+  const stridesLength = outputData.shape.length - 1;
+  uniformDeclaration += `
+       outShapeStrides: ${getCoordsDataType(stridesLength)}; `;
+
+  if (program.size != null) {
+    uniformDeclaration += 'size : u32; ';
+  }
+
+  if (program.uniformsWgsl) {
+    uniformDeclaration += program.uniformsWgsl;
+  }
+  uniformDeclaration += '};';
+/*
+  if (uniformDeclaration !== '') {
+    prefixSnippets.push(`
+        layout(std140, set = 0, binding = ${
+        1 + program.variableNames.length}) uniform Uniforms {
+            ${uniformDeclaration}
+        };
+    `);
+  }
+*/
 
   // prefixSnippets.push(getGlslDifferences().defineSpecialNaN);
 
@@ -150,7 +196,7 @@ export function makeShader(
   */
 
   const sources = [
-    SHADER_PREFIX, program.getUserHeaderCode(), SAMPLING_SNIPPETS, getCoords,
+    SHADER_PREFIX,uniformDeclaration, program.getUserHeaderCode(), SAMPLING_SNIPPETS, getCoords,
     getOutputCoords,
     getSetOutputSnippet(outputData.shape, outputData.dtype, program.isVec4)
   ];

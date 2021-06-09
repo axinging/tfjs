@@ -29,6 +29,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
   dispatch: [number, number, number];
   variableNames = ['x', 'W'];
   uniforms = 'ivec2 filterDims, pad, stride, dilation;';
+  uniformsWgsl = 'filterDims : vec2<u32>; pad : vec2<u32>; stride : vec2<u32>; dilation : vec2<u32>;';
   workGroupSize: [number, number, number];
   useWGSL = true;
   isVec4 = true;
@@ -261,20 +262,6 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     //  float NAN; ivec4 xShape; ivec4 wShape; int biasShape; int preluActivationWeightsShape; ivec4 outShape; ivec3 outShapeStrides; ivec2 filterDims, pad, stride, dilation;
     return `
     // float NAN; int aShape; int outShape; int outShapeStrides; int size; 
-    [[block]] struct Uniforms {
-      NAN : u32;
-      xShape : vec4<u32>;
-      wShape : vec4<u32>;
-      biasShape : u32;
-      preluActivationWeightsShape : u32; 
-      outShape : vec4<u32>;
-      outShapeStrides : vec3<u32>;
-      filterDims : vec2<u32>; 
-      pad : vec2<u32>; 
-      stride : vec2<u32>; 
-      dilation : vec2<u32>; 
-    };
-
     [[block]] struct Matrix {
       numbers: array<vec4<f32>>;
     };
