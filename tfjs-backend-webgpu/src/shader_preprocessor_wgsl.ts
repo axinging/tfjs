@@ -274,7 +274,7 @@ const SHADER_PREFIX = `
   }
   `;
 const SAMPLING_SNIPPETS = `
-  fn getFlatIndex(coord : u32, shape : u32) -> u32 {
+  fn getFlatIndex1(coord : u32, shape : u32) -> u32 {
     return coord;
   }
 
@@ -332,7 +332,7 @@ function getSetOutputSnippet(
       case 2:
         snippet += `
         fn getOutputFlatIndex(coords : vec2<u32>) -> u32 {
-          return u32(dot(vec2<f32>(coords), vec2<f32>(f32(uniforms.outShapeStrides), 1u)));
+          return u32(dot(vec2<f32>(coords), vec2<f32>(f32(uniforms.outShapeStrides), 1.0)));
         }
         `;
         break;
@@ -377,7 +377,7 @@ function getSetOutputSnippet(
         let flatIndex : u32 = getOutputFlatIndex(${type}(${dims.join(', ')}));
         setOutputFlat(flatIndex, value);
       }
-      fn setOutput(${dims.map(d => `${d} : u32`).join(', ')}, value : i32) {
+      fn setOutputI32(${dims.map(d => `${d} : u32`).join(', ')}, value : i32) {
         let flatIndex : u32 = getOutputFlatIndex(${type}(${dims.join(', ')}));
         setOutputFlatI32(flatIndex, value);
       }
@@ -429,8 +429,9 @@ function getSamplerFromInInfo(inInfo: InputInfo, isVec4: boolean): string {
 
   const shapeStr =
       `uniforms.${texName.charAt(0).toLowerCase() + texName.slice(1)}Shape`;
-  let rankStr = '';
-  if (rank == 4) rankStr = '4';
+  let rankStr = `${rank}`;
+  if (rank == 0) rankStr = '1';
+
 
   if (isVec4) {
     return `
@@ -543,8 +544,8 @@ export function getSamplerAtOutputCoords(
 
   const shapeStr =
       `uniforms.${texName.charAt(0).toLowerCase() + texName.slice(1)}Shape`;
-  let rankStr = '';
-  if (inRank == 4) rankStr = '4';
+  let rankStr = `${inRank}`;
+  if (inRank == 0) rankStr = '1';
   if (isVec4) {
     return `
       fn ${funcName}(global_id : vec3<u32>) -> vec4<f32> {
