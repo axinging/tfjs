@@ -15,8 +15,9 @@
  * =============================================================================
  */
 
-import {TensorInfo} from '@tensorflow/tfjs-core';
+import {backend_util, TensorInfo} from '@tensorflow/tfjs-core';
 import {computeDispatch, computeWorkGroupSizeForMatMul, tilesFitEvenlyIntoShape} from '../webgpu_util';
+import {mapActivationToShaderProgram} from './activation_util';
 
 import {WebGPUProgram} from './webgpu_program';
 
@@ -180,7 +181,8 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
 
   constructor(
       aShape: [number, number, number], outputShape: [number, number, number],
-      rowPerThread: number, bias: TensorInfo = null, activation: string = null,
+      rowPerThread: number, bias: TensorInfo = null,
+      activation: backend_util.Activation = null,
       preluActivationWeights: TensorInfo = null) {
     this.outputShape = outputShape;
     this.workGroupSize = computeWorkGroupSizeForMatMul(
@@ -206,13 +208,13 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     this.workPerThread = rowPerThread;
     this.aShape = aShape;
     this.addBias = addBias;
-    this.activation = activation;
+    this.activation = mapActivationToShaderProgram(activation, this.isVec4);
     this.hasPreluActivationWeights = hasPreluActivationWeights;
 
     [this.fitA, this.fitB] = this.getShapeFit();
 
     this.shaderKey = `matMulPackedVec4_${rowPerThread}_${activation}_${
-        this.fitA}_${this.fitB}_${this.outputShape[1] > 1}`;
+        this.isVec4}_${this.fitA}_${this.fitB}_${this.outputShape[1] > 1}`;
   }
 
   getShapeFit(): boolean[] {
