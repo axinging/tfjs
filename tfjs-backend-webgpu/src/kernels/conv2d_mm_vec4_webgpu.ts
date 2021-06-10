@@ -18,6 +18,7 @@
 import {backend_util, util} from '@tensorflow/tfjs-core';
 
 import {computeDispatch, tilesFitEvenlyIntoShape} from '../webgpu_util';
+import {mapActivationToShaderProgram} from './activation_util';
 
 import {makeMatMulPackedVec4Source} from './matmul_packed_vec4_webgpu';
 import {WebGPUProgram} from './webgpu_program';
@@ -41,8 +42,8 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
 
   constructor(
       convInfo: backend_util.Conv2DInfo, addBias = false,
-      activation: string = null, hasPreluActivationWeights = false,
-      hasLeakyreluAlpha = false) {
+      activation: backend_util.Activation = null,
+      hasPreluActivationWeights = false, hasLeakyreluAlpha = false) {
     this.outputShape = convInfo.outShape;
 
     util.assert(
@@ -56,7 +57,9 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
         elementsPerThread);
     this.convInfo = convInfo;
     this.addBias = addBias;
-    this.activation = activation;
+    let activationKey;
+    [this.activation, activationKey] =
+        mapActivationToShaderProgram(activation, true);
     this.hasPreluActivationWeights = hasPreluActivationWeights;
     this.hasLeakyreluAlpha = hasLeakyreluAlpha;
     if (this.addBias) {
@@ -72,8 +75,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     }
 
     [this.fitA, this.fitB] = this.getShapeFit(elementsPerThread);
-    this.shaderKey =
-        `conv2DMMVec4_${this.activation}_${this.fitA}_${this.fitB}`;
+    this.shaderKey = `conv2DMMVec4_${activationKey}_${this.fitA}_${this.fitB}`;
   }
 
   getShapeFit(elementsPerThread: [number, number, number]): boolean[] {
