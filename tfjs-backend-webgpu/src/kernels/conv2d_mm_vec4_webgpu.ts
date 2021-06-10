@@ -240,7 +240,6 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     return userCode;
   }
 
-
   getUserWGSLCode(): string {
     const elementsPerThread: [number, number, number] = [4, 4, 1];
     const matMulSource =
@@ -273,7 +272,6 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     const remainderSnippet = remainder === 0 ?
         `// The bounds checking is always needed since we use it to pad zero for
         // the 'same' padding type.
-        // var resData : vec4<f32>;
         if (coordsInBounds4(coord, uniforms.xShape)) {
           resData = x.numbers[getFlatIndex4(coord, uniforms.xShape) / 4u];
         } else {
