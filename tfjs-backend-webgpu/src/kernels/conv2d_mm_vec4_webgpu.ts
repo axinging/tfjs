@@ -21,7 +21,7 @@ import {computeDispatch, tilesFitEvenlyIntoShape} from '../webgpu_util';
 import {mapActivationToShaderProgram} from './activation_util';
 
 import {makeMatMulPackedVec4Source, makeMatMulPackedVec4WgslSource} from './matmul_packed_vec4_webgpu';
-import {WebGPUProgram} from './webgpu_program';
+import {getUseWgsl, WebGPUProgram} from './webgpu_program';
 
 export class Conv2DMMVec4Program implements WebGPUProgram {
   outputShape: number[];
@@ -60,7 +60,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
         elementsPerThread);
     this.convInfo = convInfo;
     this.addBias = addBias;
-    this.useWgsl = !env().getBool('WEBGPU_USE_GLSL');
+    this.useWgsl = getUseWgsl();
     this.activation =
         mapActivationToShaderProgram(activation, true, this.useWgsl);
     this.hasPreluActivationWeights = hasPreluActivationWeights;
