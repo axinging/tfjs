@@ -17,7 +17,7 @@
 
 import {backend_util} from '@tensorflow/tfjs-core';
 
-import {BinaryOpType, getBinaryOpString, getBinaryOpStringWGSL} from './binary_ops';
+import {BinaryOpType, getBinaryOpString, getWgslBinaryOpString} from './binary_ops';
 import * as unary_op from './unary_op_webgpu';
 
 export function mapActivationToShaderProgram(
@@ -64,7 +64,7 @@ function mapActivationToShaderProgramWGSL(
   } else if (activation === 'relu6') {
     return packed ? unary_op.RELU6_VEC4_WGSL : unary_op.RELU6;
   } else if (activation === 'prelu') {
-    return getBinaryOpStringWGSL(BinaryOpType.PRELU, packed);
+    return getWgslBinaryOpString(BinaryOpType.PRELU, packed);
   } else if (activation === 'sigmoid') {
     return unary_op.SIGMOID;
   }

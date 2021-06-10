@@ -55,7 +55,7 @@ interface ProgramParams {
   isVec4?: boolean;
   size?: number;
   getUserCode: () => string;
-  getUserWGSLCode?: () => string;
+  getWgslUserCode?: () => string;
 }
 
 export interface InputInfo {
@@ -74,7 +74,7 @@ export function makeShader(
   if (isFromPixel === true) {
     const getCoords = generateGetCoordsFromFlatIndex(outputData.shape);
     return [
-      SHADER_PREFIX, outputBufferStr, program.getUserWGSLCode(), getCoords
+      SHADER_PREFIX, outputBufferStr, program.getWgslUserCode(), getCoords
     ].join('\n');
   }
 
@@ -150,7 +150,7 @@ export function makeShader(
     sources.push(inputSamplingSnippet);
   }
 
-  sources.push(program.getUserWGSLCode());
+  sources.push(program.getWgslUserCode());
   const source = sources.join('\n');
   return source;
 }

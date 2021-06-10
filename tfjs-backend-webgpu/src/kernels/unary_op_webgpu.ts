@@ -145,7 +145,7 @@ export class UnaryOpProgram implements WebGPUProgram {
   }
 
 
-  getUserWGSLCode(): string {
+  getWgslUserCode(): string {
     return `
       fn unaryOperation(a : f32) -> f32{
         ${this.op}

@@ -504,7 +504,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     return userCode;
   }
 
-  getUserWGSLCode(): string {
+  getWgslUserCode(): string {
     let activationSnippet = '', applyActivationSnippet = '';
     if (this.activation) {
       if (this.hasPreluActivationWeights) {

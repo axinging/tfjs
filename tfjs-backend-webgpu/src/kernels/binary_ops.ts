@@ -170,7 +170,7 @@ export function getBinaryOpString(
   }
 }
 
-export function getBinaryOpStringWGSL(
+export function getWgslBinaryOpString(
     type: BinaryOpType, useVec4?: boolean): string {
   switch (type) {
     case BinaryOpType.PRELU:

@@ -15,7 +15,7 @@
  * =============================================================================
  */
 
-import {backend_util, env, util} from '@tensorflow/tfjs-core';
+import {backend_util, util} from '@tensorflow/tfjs-core';
 
 import {computeDispatch, tilesFitEvenlyIntoShape} from '../webgpu_util';
 import {mapActivationToShaderProgram} from './activation_util';
@@ -241,7 +241,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     return userCode;
   }
 
-  getUserWGSLCode(): string {
+  getWgslUserCode(): string {
     const elementsPerThread: [number, number, number] = [4, 4, 1];
     const matMulSource =
         makeMatMulPackedVec4WgslSource('', '', elementsPerThread);
