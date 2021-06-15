@@ -248,6 +248,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
         makeMatMulPackedVec4SourceWgsl('', '', elementsPerThread);
 
     // Below code only applys to valid padding type.
+    // TODO(WSGL): sampleAWithRemainder is not tested.
     const sampleAWithRemainder =
         `int flatIndex = getFlatIndex4(coord, uniforms.xShape);
         int divBy4Remainder = flatIndex % 4;
