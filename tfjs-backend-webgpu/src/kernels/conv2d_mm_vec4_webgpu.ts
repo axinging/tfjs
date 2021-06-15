@@ -174,8 +174,8 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
 
     let activationSnippet = '', applyActivationSnippet = '';
     if (this.activation) {
-      const activationOp =
-          mapActivationToShaderProgram(this.activation, this.isVec4, this.useWgsl);
+      const activationOp = mapActivationToShaderProgram(
+          this.activation, this.isVec4, this.useWgsl);
       if (this.hasPreluActivationWeights) {
         activationSnippet = `vec4 activation(vec4 a, ivec4 outCoord) {
           vec4 b = getPreluActivationWeightsAtOutCoords(outCoord);
@@ -325,22 +325,24 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
         `
     let activationSnippet = '', applyActivationSnippet = '';
     if (this.activation) {
+      const activationOp = mapActivationToShaderProgram(
+          this.activation, this.isVec4, this.useWgsl);
       if (this.hasPreluActivationWeights) {
         activationSnippet =
             `fn activation(a : vec4<f32>, outCoord : vec4<u32>) -> vec4<f32>{
           let b: vec4<f32> = getPreluActivationWeightsAtOutCoords2(outCoord);
-          ${this.activation}
+          ${activationOp}
         }`;
       } else if (this.hasLeakyreluAlpha) {
         activationSnippet = `fn activation(a: vec4<f32>) ->vec4<f32> {
           let b : vec4<f32> = getLeakyreluAlphaAtOutCoords();
-          ${this.activation}
+          ${activationOp}
         }`;
         throw new Error('Leakyrelu is not supported.');
       } else {
         activationSnippet = `
         fn activation(a : vec4<f32>, outCoord : vec4<u32>) -> vec4<f32>{
-          ${this.activation}
+          ${activationOp}
         }`;
       }
 
