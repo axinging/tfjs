@@ -175,7 +175,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     let activationSnippet = '', applyActivationSnippet = '';
     if (this.activation) {
       const activationOp =
-          mapActivationToShaderProgram(this.activation, this.isVec4);
+          mapActivationToShaderProgram(this.activation, this.isVec4, this.useWgsl);
       if (this.hasPreluActivationWeights) {
         activationSnippet = `vec4 activation(vec4 a, ivec4 outCoord) {
           vec4 b = getPreluActivationWeightsAtOutCoords(outCoord);

@@ -256,7 +256,8 @@ export function makeMatMulPackedVec4SourceWgsl(
   console.log('makeMatMulPackedVec4SourceWgsl');
 
   const kMatMulVec4TwoDimensionalSharedArray = getSharedArray2DCodeWgsl() +
-      getMainCodeWgsl(getA2DCodeWgsl(), getB2DCodeWgsl(), getCompute2DCodeWgsl());
+      getMainCodeWgsl(getA2DCodeWgsl(), getB2DCodeWgsl(),
+                      getCompute2DCodeWgsl());
   return kMatMulVec4TwoDimensionalSharedArray;
 }
 
@@ -265,7 +266,8 @@ export function makeMatMulVectorVec4SourceWgsl(
   console.log('makeMatMulPackedVec4SourceWgsl');
 
   const kMatMulVec4OneDimensionalSharedArray = getSharedArray1DCodeWgsl() +
-      getMainCodeWgsl(getA1DCodeWgsl(), getB1DCodeWgsl(), getCompute1DCodeWgsl());
+      getMainCodeWgsl(getA1DCodeWgsl(), getB1DCodeWgsl(),
+                      getCompute1DCodeWgsl());
 
   return kMatMulVec4OneDimensionalSharedArray;
 }
@@ -371,8 +373,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     this.aShape = aShape;
     this.addBias = addBias;
     this.useWgsl = getUseWgsl();
-    this.activation =
-        mapActivationToShaderProgram(activation, this.isVec4, this.useWgsl);
+    this.activation = activation;
     this.hasPreluActivationWeights = hasPreluActivationWeights;
 
     [this.fitA, this.fitB] = this.getShapeFit();
@@ -412,8 +413,8 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
 
     let activationSnippet = '', applyActivationSnippet = '';
     if (this.activation) {
-      const activationOp =
-          mapActivationToShaderProgram(this.activation, this.isVec4);
+      const activationOp = mapActivationToShaderProgram(
+          this.activation, this.isVec4, this.useWgsl);
       if (this.hasPreluActivationWeights) {
         activationSnippet = `vec4 activation(vec4 a, ivec3 outCoord) {
                   vec4 b = getPreluActivationWeightsAtOutCoords(outCoord);
