@@ -37,6 +37,7 @@ export enum BinaryOpType {
   COMPLEX_MULTIPLY_IMAG
 }
 
+// GLSL shader.
 const CHECK_NAN_SNIPPET = `
   if (isnan(a)) return a;
   if (isnan(b)) return b;
@@ -142,16 +143,29 @@ vec4 isNaN = vec4(lessThan(a, vec4(0.0))) * vec4(lessThan(floor(b), b));
 ${CHECK_NAN_SNIPPET_VEC4}
 return result;
 `;
-const PRELU = 'return (a < 0.) ? b * a : a;';
+const PRELU = 'return (a < 0.0) ? b * a : a;';
 const PRELU_VEC4 = `
-vec4 aLessThanZero = vec4(lessThan(a, vec4(0.)));
+vec4 aLessThanZero = vec4(lessThan(a, vec4(0.0)));
 return (aLessThanZero * (b * a)) + ((vec4(1.0) - aLessThanZero) * a);
 `;
 const SQUARED_DIFFERENCE = 'return (a - b) * (a - b);';
 const SUB = 'return a - b;';
 
+// WGSL shader.
+const PRELU_WGSL = `if (a < 0.0) { return b * a; }  return a;`;
+const PRELU_VEC4_WGSL = `
+let aLessThanZero : vec4<bool> = vec4<bool>(a < vec4<f32>(0.0, 0.0, 0.0, 0.0));
+var aLessThanZeroF32 : vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+for (var i : u32 = 0u; i < 4u; i = i + 1u ) {
+  if (aLessThanZero[i]) {
+    aLessThanZeroF32[i] = 1.0;
+  }
+}
+return (vec4<f32>(aLessThanZeroF32) * (b * a)) + ((vec4<f32>(1.0, 1.0, 1.0, 1.0) - vec4<f32>(aLessThanZeroF32)) * a);
+`;
+
 export function getBinaryOpString(
-    type: BinaryOpType, useVec4?: boolean): string {
+    type: BinaryOpType, useVec4?: boolean, useWgsl?: boolean): string {
   switch (type) {
     case BinaryOpType.MUL:
       return MUL;
@@ -180,7 +194,11 @@ export function getBinaryOpString(
     case BinaryOpType.INT_DIV:
       return useVec4 ? INT_DIV_VEC4 : INT_DIV;
     case BinaryOpType.PRELU:
-      return useVec4 ? PRELU_VEC4 : PRELU;
+      if (useWgsl) {
+        return useVec4 ? PRELU_VEC4_WGSL : PRELU_WGSL;
+      } else {
+        return useVec4 ? PRELU_VEC4 : PRELU;
+      }
     case BinaryOpType.MAX:
       return getMinMaxString('max', useVec4);
     case BinaryOpType.MIN:
