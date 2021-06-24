@@ -87,13 +87,16 @@ export function fusedConv2d(args: {
   } else if (useVec4) {
     program = new Conv2DMMVec4Program(
         convInfo, hasBias, activation, hasPreluActivationWeights);
-    const dimAOuter = convInfo.outShape[1] * convInfo.outShape[2];
-    const dimBOuter = convInfo.outShape[3];
-    const dimInner =
-        convInfo.filterHeight * convInfo.filterWidth * convInfo.inShape[3];
-    dimensions.push(
-        {type: 'int32', data: [dimAOuter]}, {type: 'int32', data: [dimBOuter]},
-        {type: 'int32', data: [dimInner]});
+    if ((program as Conv2DMMVec4Program).useWgsl) {
+      const dimAOuter = convInfo.outShape[1] * convInfo.outShape[2];
+      const dimBOuter = convInfo.outShape[3];
+      const dimInner =
+          convInfo.filterHeight * convInfo.filterWidth * convInfo.inShape[3];
+      dimensions.push(
+          {type: 'int32', data: [dimAOuter]},
+          {type: 'int32', data: [dimBOuter]},
+          {type: 'int32', data: [dimInner]});
+    }
   } else {
     program = new Conv2DMMProgram(
         convInfo, hasBias, activation, hasPreluActivationWeights);

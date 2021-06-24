@@ -451,16 +451,18 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
   getUserCodeWgsl(): string {
     let activationSnippet = '';
     if (this.activation) {
+      const activationOp = mapActivationToShaderProgram(
+          this.activation, this.isVec4, this.useWgsl);
       if (this.hasPreluActivationWeights) {
         activationSnippet =
             `fn activation(a : vec4<f32>, outCoord :  vec3<i32>) -> vec4<f32>{
                   vec4 b = getPreluActivationWeightsAtOutCoordsByCoords(outCoord);
-                  ${this.activation}
+                  ${activationOp}
                 }`;
       } else {
         activationSnippet = `
                 fn activation(a : vec4<f32>, outCoord :  vec3<i32>) -> vec4<f32> {
-                  ${this.activation}
+                  ${activationOp}
                 }`;
       }
     }
