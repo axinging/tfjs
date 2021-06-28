@@ -119,6 +119,12 @@ export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
   `;
 }
 
+export function getSharedArray1DCodeWgsl() {
+  return `
+  var<workgroup> mm_Asub : array<vec4<f32>, 1024>;
+  var<workgroup> mm_Bsub : array<vec4<f32>, 1024>;`;
+}
+
 function getSharedArray2DCodeWgsl(tileInfo: TileInfo) {
   return `
   var<workgroup> mm_Asub : array<array<vec4<f32>, ${
@@ -127,14 +133,47 @@ function getSharedArray2DCodeWgsl(tileInfo: TileInfo) {
       tileInfo.TileBOuter / tileInfo.ColPerThread}>, ${tileInfo.TileInner}>;`;
 }
 
+export function getA1DCodeWgsl() {
+  return `
+  let index : u32 = inputRow * TileInner / ColPerThread + inputCol;
+  mm_Asub[index] = mm_readA(globalRow + innerRow, globalColA, global_id);`;
+}
+
+
 function getA2DCodeWgsl() {
   return `
   mm_Asub[inputRow][inputCol] = mm_readA(globalRow + innerRow, globalColA, globalId);`;
 }
 
+export function getB1DCodeWgsl() {
+  return `
+  let index : u32 = inputRow * TileBOuter / ColPerThread + inputCol;
+  mm_Bsub[index] = mm_readB(t * TileInner + inputRow, globalCol);`;
+}
+
 function getB2DCodeWgsl() {
   return `
   mm_Bsub[inputRow][inputCol] = mm_readB(t * TileInner + inputRow, globalCol);`;
+}
+
+export function getCompute1DCodeWgsl() {
+  return `
+  // Compute acc values for a single thread.
+  for (var k : u32 = 0u; k < TileInner / ColPerThread; k = k + 1u) {
+      BCached[0] = mm_Bsub[(k * ColPerThread) * (TileBOuter / ColPerThread) + tileCol];
+      BCached[1] = mm_Bsub[(k * ColPerThread + 1u) * (TileBOuter / ColPerThread) + tileCol];
+      BCached[2] = mm_Bsub[(k * ColPerThread + 2u) * (TileBOuter / ColPerThread) + tileCol];
+      BCached[3] = mm_Bsub[(k * ColPerThread + 3u) * (TileBOuter / ColPerThread) + tileCol];
+
+      for (var i : u32 = 0u; i < RowPerThread; i = i + 1u) {
+          ACached = mm_Asub[(tileRow + i) * (TileInner / ColPerThread) + k];
+
+          acc[i] = BCached[0] * ACached.x + acc[i];
+          acc[i] = BCached[1] * ACached.y + acc[i];
+          acc[i] = BCached[2] * ACached.z + acc[i];
+          acc[i] = BCached[3] * ACached.w + acc[i];
+      }
+  }`;
 }
 
 function getCompute2DCodeWgsl() {
@@ -246,6 +285,20 @@ export function makeMatMulPackedVec4SourceWgsl(
           getWorkGroupSizeString(workGroupSize), tileInfo);
   return kMatMulVec4TwoDimensionalSharedArray;
 }
+
+export function makeMatMulVectorVec4SourceWgsl(
+    addBiasSnippet: string, applyActivationSnippet: string): string {
+  console.log('makeMatMulPackedVec4SourceWgsl');
+
+  /*
+  const kMatMulVec4OneDimensionalSharedArray = getSharedArray1DCodeWgsl() +
+      getMainCodeWgsl(getA1DCodeWgsl(), getB1DCodeWgsl(),
+                      getCompute1DCodeWgsl());
+            */
+
+  return "";//kMatMulVec4OneDimensionalSharedArray;
+}
+
 
 export function makeMatMulVectorVec4Source(): string {
   return `
@@ -449,7 +502,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
   }
 
   getUserCodeWgsl(): string {
-    let activationSnippet = '';
+    let activationSnippet = '', applyActivationSnippet = '';
     if (this.activation) {
       if (this.hasPreluActivationWeights) {
         activationSnippet =
@@ -463,7 +516,11 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
                   ${this.activation}
                 }`;
       }
+
+      applyActivationSnippet = 'value = activation(value, outCoord);';
     }
+    const addBiasSnippet =
+        this.addBias ? 'value += getBiasAtOutCoords(outCoord);' : '';
 
     if (this.outputShape[1] <= 1) {
       throw Error(`outputShape[1] <= 1 is not yet supported`);
@@ -472,9 +529,13 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     const userCode = `
       ${activationSnippet}
 
+    
       ${
-        makeMatMulPackedVec4SourceWgsl(
-            [this.vecSize, this.workPerThread, 1], this.workGroupSize)}
+        this.outputShape[1] > 1 ?
+            makeMatMulPackedVec4SourceWgsl(
+                [this.vecSize, this.workPerThread, 1], this.workGroupSize) :
+            makeMatMulVectorVec4SourceWgsl(
+                addBiasSnippet, applyActivationSnippet)}
     `;
     return userCode;
   }
