@@ -405,7 +405,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     this.workPerThread = rowPerThread;
     this.aShape = aShape;
     this.addBias = addBias;
-    this.useWgsl = false;//getUseWgsl();
+    this.useWgsl = getUseWgsl();
     console.log("getUseWgsl() ="+ getUseWgsl()+ ", this.useWgsl="+ this.useWgsl);
     this.activation = activation;
     this.hasPreluActivationWeights = hasPreluActivationWeights;
@@ -516,7 +516,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
             return vec4<f32>(0.0, 0.0, 0.0, 0.0)`;
 
     const sampleB = this.fitB ?
-        `return  B.numbers[batch * batchBSize + row * uniforms.dimBOuter / 4 + col]` :
+        `return  B.numbers[batch * batchBSize + row * uniforms.dimBOuter / 4u + col]` :
         `if( coordsInBounds2D(vec2<u32>(row, col * 4u), vec2<u32>(uniforms.dimInner, uniforms.dimBOuter))) {
              return  B.numbers[batch * batchBSize + row * uniforms.dimBOuter / 4u + col];
         }
