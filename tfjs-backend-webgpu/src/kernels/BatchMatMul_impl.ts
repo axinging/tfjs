@@ -98,6 +98,11 @@ export function batchMatMulImpl({
   const useVec4 = a.shape[2] % 4 === 0 && b.shape[2] % 4 === 0 && !transposeA &&
       !transposeB && outerShapeB >= 32;
   let program: MatMulPackedProgram|MatMulPackedVec4Program;
+    //a.shape =16,16; b.shape =16,16; outshape: 1, 16 , 16,useVec4 =false
+  // a.shape =65,67; b.shape =67,66; outshape: 1, 65 , 66,useVec4 =false
+  console.log("a.shape =" + a.shape + "; b.shape =" + b.shape 
+  	  + "; outshape: " + batchDim + ", "+ outerShapeA +" , "+ outerShapeB + ",useVec4 ="+useVec4);
+  let dimensions = null;
   if (useVec4) {
     // TODO: Currently we need to make sure that a.shape[2] and b.shape[2]
     // are divisible by 4 since we use vec4 to get data. In future, we can
@@ -106,6 +111,14 @@ export function batchMatMulImpl({
         a3dShape, [batchDim, outerShapeA, outerShapeB],
         env().get('WEBGPU_MATMUL_WORK_PER_THREAD') as number, bias, activation,
         preluActivationWeights);
+	if ((program as MatMulPackedVec4Program).useWgsl) {
+	const dimAOuter = a.shape[1];
+    const dimInner = a.shape[2];
+    const dimBOuter = b.shape[2];
+    dimensions = [
+        {type: 'int32', data: [dimAOuter]}, {type: 'int32', data: [dimBOuter]},
+        {type: 'int32', data: [dimInner]}];
+	}
   } else {
     program = new MatMulPackedProgram(
         a3dShape, [batchDim, outerShapeA, outerShapeB],
@@ -119,7 +132,7 @@ export function batchMatMulImpl({
   if (preluActivationWeights) {
     inputs.push(preluActivationWeights);
   }
-  const out = backend.runWebGPUProgram(program, inputs, a.dtype);
+  const out = backend.runWebGPUProgram(program, inputs, a.dtype, dimensions);
   const outReshaped =
       reshape({inputs: {x: out}, backend, attrs: {shape: outShape}});
   intermediates.push(out);

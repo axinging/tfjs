@@ -148,12 +148,12 @@ function getA2DCodeWgsl() {
 export function getB1DCodeWgsl() {
   return `
   let index : u32 = inputRow * TileBOuter / ColPerThread + inputCol;
-  mm_Bsub[index] = mm_readB(t * TileInner + inputRow, globalCol);`;
+  mm_Bsub[index] = mm_readB(t * TileInner + inputRow, globalCol, globalId);`;
 }
 
 function getB2DCodeWgsl() {
   return `
-  mm_Bsub[inputRow][inputCol] = mm_readB(t * TileInner + inputRow, globalCol);`;
+  mm_Bsub[inputRow][inputCol] = mm_readB(t * TileInner + inputRow, globalCol, globalId);`;
 }
 
 export function getCompute1DCodeWgsl() {
@@ -196,7 +196,7 @@ function getCompute2DCodeWgsl() {
 }
 
 function getMainCodeWgsl(
-    getA: string, getB: string, computeAcc: string,
+    varSnippet: string, getA: string, getB: string, computeAcc: string,
     workGroupSizeSnippet: string, tileInfo: TileInfo) {
   return `
   let RowPerThread : u32 = ${tileInfo.RowPerThread}u;
@@ -215,7 +215,8 @@ function getMainCodeWgsl(
 
     let globalRow : u32 = globalId.y * RowPerThread;
     let globalCol : u32 = globalId.x;
-    var dimInner : u32 = uniforms.filterDims[0] * uniforms.filterDims[1] * uniforms.xShape[3];
+    // var dimInner : u32 = uniforms.dimInner;//uniforms.filterDims[0] * uniforms.filterDims[1] * uniforms.xShape[3];
+    ${varSnippet}
     let numTiles : u32 = (dimInner - 1u) / TileInner + 1u;
 
     var acc: array<vec4<f32>, 4>;
@@ -266,7 +267,8 @@ function getMainCodeWgsl(
 }
 
 export function makeMatMulPackedVec4SourceWgsl(
-    workPerThread: number[], workGroupSize: [number, number, number]): string {
+    workPerThread: number[], workGroupSize: [number, number, number],
+    varSnippet: string): string {
   const rowPerThread = workPerThread[1];
   const colPerThread = workPerThread[0];  // only support colPerThread = 4
   const tileBOuter = workGroupSize[0] * colPerThread;
@@ -277,12 +279,14 @@ export function makeMatMulPackedVec4SourceWgsl(
     TileBOuter: workGroupSize[0] * colPerThread,
     TileInner: tileBOuter
   };
-
-  const kMatMulVec4TwoDimensionalSharedArray =
-      getSharedArray2DCodeWgsl(tileInfo) +
-      getMainCodeWgsl(
-          getA2DCodeWgsl(), getB2DCodeWgsl(), getCompute2DCodeWgsl(),
-          getWorkGroupSizeString(workGroupSize), tileInfo);
+  // const varSnippet = `var dimInner : u32 =
+  // uniforms.dimInner;//uniforms.filterDims[0] * uniforms.filterDims[1] *
+  // uniforms.xShape[3];`;
+  const kMatMulVec4TwoDimensionalSharedArray = getSharedArray2DCodeWgsl(
+                                                   tileInfo) +
+      getMainCodeWgsl(varSnippet, getA2DCodeWgsl(), getB2DCodeWgsl(),
+                      getCompute2DCodeWgsl(),
+                      getWorkGroupSizeString(workGroupSize), tileInfo);
   return kMatMulVec4TwoDimensionalSharedArray;
 }
 
@@ -296,7 +300,7 @@ export function makeMatMulVectorVec4SourceWgsl(
                       getCompute1DCodeWgsl());
             */
 
-  return "";//kMatMulVec4OneDimensionalSharedArray;
+  return '';  // kMatMulVec4OneDimensionalSharedArray;
 }
 
 
@@ -359,6 +363,8 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
   dispatch: [number, number, number];
   workPerThread: number;
   variableNames = ['A', 'B'];
+  uniformsWgsl =
+  `dimAOuter : u32; dimBOuter : u32; dimInner : u32;`;
   workGroupSize: [number, number, number] = [16, 16, 1];
   useWgsl: boolean;
   isVec4 = true;
@@ -399,7 +405,8 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     this.workPerThread = rowPerThread;
     this.aShape = aShape;
     this.addBias = addBias;
-    this.useWgsl = getUseWgsl();
+    this.useWgsl = false;//getUseWgsl();
+    console.log("getUseWgsl() ="+ getUseWgsl()+ ", this.useWgsl="+ this.useWgsl);
     this.activation = activation;
     this.hasPreluActivationWeights = hasPreluActivationWeights;
 
@@ -459,7 +466,6 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
 
     const addBiasSnippet =
         this.addBias ? 'value += getBiasAtOutCoords(outCoord);' : '';
-
     const userCode = `
       ${activationSnippet}
       int dimAOuter = aShape[1];
@@ -502,18 +508,34 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
   }
 
   getUserCodeWgsl(): string {
+    const sampleA = this.fitA ?
+        `return A.numbers[batch * batchASize + row * uniforms.dimInner / 4u + col]` :
+        `if (coordsInBounds2D(vec2<u32>(row, col * 4u), vec2<u32>(uniforms.dimAOuter, uniforms.dimInner))) {
+            return   A.numbers[batch * batchASize + row * uniforms.dimInner / 4u + col];
+        }
+            return vec4<f32>(0.0, 0.0, 0.0, 0.0)`;
+
+    const sampleB = this.fitB ?
+        `return  B.numbers[batch * batchBSize + row * uniforms.dimBOuter / 4 + col]` :
+        `if( coordsInBounds2D(vec2<u32>(row, col * 4u), vec2<u32>(uniforms.dimInner, uniforms.dimBOuter))) {
+             return  B.numbers[batch * batchBSize + row * uniforms.dimBOuter / 4u + col];
+        }
+         return    vec4<f32>(0.0, 0.0, 0.0, 0.0)`;
+
     let activationSnippet = '', applyActivationSnippet = '';
     if (this.activation) {
+      const activationOp = mapActivationToShaderProgram(
+          this.activation, this.isVec4, this.useWgsl);
       if (this.hasPreluActivationWeights) {
         activationSnippet =
             `fn activation(a : vec4<f32>, outCoord :  vec3<i32>) -> vec4<f32>{
                   vec4 b = getPreluActivationWeightsAtOutCoordsByCoords(outCoord);
-                  ${this.activation}
+                  ${activationOp}
                 }`;
       } else {
         activationSnippet = `
                 fn activation(a : vec4<f32>, outCoord :  vec3<i32>) -> vec4<f32> {
-                  ${this.activation}
+                  ${activationOp}
                 }`;
       }
 
@@ -526,17 +548,48 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
       throw Error(`outputShape[1] <= 1 is not yet supported`);
     }
 
+    const varSnippet = `let dimInner : u32 = uniforms.aShape[2];`;
     const userCode = `
       ${activationSnippet}
-
+      // int dimAOuter = aShape[1];
+      // int dimInner = aShape[2];
+      // int dimBOuter = bShape[2];
+      // var batch : u32;
     
-      ${
-        this.outputShape[1] > 1 ?
-            makeMatMulPackedVec4SourceWgsl(
-                [this.vecSize, this.workPerThread, 1], this.workGroupSize) :
-            makeMatMulVectorVec4SourceWgsl(
-                addBiasSnippet, applyActivationSnippet)}
+                fn mm_readA(row : u32, col : u32,  globalId  : vec3<u32>) -> vec4<f32>{
+                  let batchASize : u32 = uniforms.aShape[1] * uniforms.aShape[2] / ${
+        this.vecSize}u;
+                  let batch : u32 = u32(globalId.z);
+                  ${sampleA};
+                }
+          
+                fn mm_readB(row : u32, col : u32,  globalId  : vec3<u32>) -> vec4<f32>{
+                  // TODO: This is not covered in unit tests.
+                  let batchBSize : u32 = uniforms.bShape[1] * uniforms.bShape[2] / ${
+        this.vecSize}u;
+                  let batch : u32 = u32(globalId.z);
+                  ${sampleB};
+                }
+          
+                fn mm_write(row : u32, col : u32, value : vec4<f32>, globalId  : vec3<u32>) {
+                  if (row < uniforms.aShape[1] && col * 4u < uniforms.bShape[2])
+                  {
+                    let batch : u32 = u32(globalId.z);
+                    let outCoord : vec3<u32> = vec3<u32>(batch, row, col * 4u);
+                    ${addBiasSnippet}
+                    ${applyActivationSnippet}
+                    setOutput(outCoord[0], outCoord[1], outCoord[2], value);
+                  }
+                }
+                ${
+        this.outputShape[1] > 1 ? makeMatMulPackedVec4SourceWgsl(
+                                      [this.vecSize, this.workPerThread, 1],
+                                      this.workGroupSize, varSnippet) :
+                                  makeMatMulVectorVec4SourceWgsl(
+                                      addBiasSnippet, applyActivationSnippet)}
+
     `;
+
     return userCode;
   }
 }
