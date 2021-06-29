@@ -121,8 +121,7 @@ export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
 
 export function getSharedArray1DCodeWgsl() {
   return `
-  var<workgroup> mm_Asub : array<vec4<f32>, 1024>;
-  var<workgroup> mm_Bsub : array<vec4<f32>, 1024>;`;
+  var<workgroup> mm_Asub : array<vec4<f32>, 1024>;`;
 }
 
 function getSharedArray2DCodeWgsl(tileInfo: TileInfo) {
@@ -291,18 +290,72 @@ export function makeMatMulPackedVec4SourceWgsl(
 }
 
 export function makeMatMulVectorVec4SourceWgsl(
-    addBiasSnippet: string, applyActivationSnippet: string): string {
+  workPerThread: number[], workGroupSize: [number, number, number],
+  varSnippet: string): string {
   console.log('makeMatMulPackedVec4SourceWgsl');
+  const TileSize = workGroupSize[0];
 
-  /*
+  //
   const kMatMulVec4OneDimensionalSharedArray = getSharedArray1DCodeWgsl() +
-      getMainCodeWgsl(getA1DCodeWgsl(), getB1DCodeWgsl(),
-                      getCompute1DCodeWgsl());
-            */
+      getMainCodeWgsl2(varSnippet, getA1DCodeWgsl(), getB1DCodeWgsl(),
+                      getCompute1DCodeWgsl(),getWorkGroupSizeString(workGroupSize), TileSize);
+            //
 
-  return '';  // kMatMulVec4OneDimensionalSharedArray;
+  return kMatMulVec4OneDimensionalSharedArray;
 }
 
+export function getMainCodeWgsl2(varSnippet: string, getA: string, getB: string, computeAcc: string,
+  workGroupSizeSnippet: string, TileSize: number): string {
+  return `
+
+    // const int TileSize = int(gl_WorkGroupSize.x) * 4;
+    let TileSize = ${TileSize*4}u;
+
+    // shared vec4 mm_Asub[TileSize / 4];
+
+    ${workGroupSizeSnippet}
+    fn main([[builtin(local_invocation_id)]] localId : vec3<u32>,
+          [[builtin(global_invocation_id)]] globalId  : vec3<u32>) {
+      let tileCol : u32 = u32(localId.x);
+      let globalCol : u32 = u32(globalId.x);
+      let globalRow : u32 = u32(globalId.y);
+
+      let numTiles  : u32 = (uniforms.dimInner - 1u) / TileSize + 1u;
+
+      // Without this initialization strange values show up in acc.
+      var acc : vec4<f32>= vec4<f32>(0.0, 0.0, 0.0, 0.0);;
+
+      // Loop over shared dimension.
+      for (var t : u32 = 0u; t < numTiles; t = t + 1u) {
+        // Load one tile of A into local memory.
+        let colA : u32 = t * TileSize / 4u + tileCol;
+        mm_Asub[tileCol] = mm_readA(globalRow, colA, globalId);
+        workgroupBarrier();
+
+        // Compute acc values for a single thread.
+        for (var k : u32 = 0u; k < TileSize / 4u; k = k + 1u) {
+          let rowB : u32 = t * TileSize + k * 4u;
+          let BCached0 : vec4<f32> = mm_readB(rowB, globalCol, globalId);
+          let BCached1 : vec4<f32> = mm_readB(rowB + 1u, globalCol, globalId);
+          let BCached2 : vec4<f32> = mm_readB(rowB + 2u, globalCol, globalId);
+          let BCached3 : vec4<f32> = mm_readB(rowB + 3u, globalCol, globalId);
+
+          let ACached : vec4<f32> = mm_Asub[k];
+          acc = acc + BCached0 * ACached.x;
+          acc = acc + BCached1 * ACached.y;
+          acc = acc + BCached2 * ACached.z;
+          acc = acc + BCached3 * ACached.w;
+        }
+
+        workgroupBarrier();
+      }
+
+      if (globalRow < uniforms.dimAOuter && globalCol < uniforms.dimBOuter) {
+        mm_write(globalRow, globalCol, acc, globalId);
+      }
+    }
+  `;
+}
 
 export function makeMatMulVectorVec4Source(): string {
   return `
@@ -545,7 +598,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
         this.addBias ? 'value += getBiasAtOutCoords(outCoord);' : '';
 
     if (this.outputShape[1] <= 1) {
-      throw Error(`outputShape[1] <= 1 is not yet supported`);
+      //throw Error(`outputShape[1] <= 1 is not yet supported`);
     }
 
     const varSnippet = `let dimInner : u32 = uniforms.aShape[2];`;
@@ -586,7 +639,8 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
                                       [this.vecSize, this.workPerThread, 1],
                                       this.workGroupSize, varSnippet) :
                                   makeMatMulVectorVec4SourceWgsl(
-                                      addBiasSnippet, applyActivationSnippet)}
+                                    [this.vecSize, this.workPerThread, 1],
+                                    this.workGroupSize,varSnippet)}
 
     `;
 
