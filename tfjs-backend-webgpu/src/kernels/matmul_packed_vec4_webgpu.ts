@@ -61,7 +61,7 @@ export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
 
       // Without this initialization strange values show up in acc.
       for (int innerRow = 0; innerRow < RowPerThread; innerRow++) {
-          acc[innerRow] = vec4(0.0, 0.0, 0.0, 0.0);
+          acc[innerRow] = vec4(0.0);
       }
 
       // Loop over shared dimension.
@@ -194,7 +194,7 @@ function getCompute2DCodeWgsl() {
   }`;
 }
 
-function getMainCodeWgsl(
+function getPackedVec4MainCodeWgsl(
     varSnippet: string, getA: string, getB: string, computeAcc: string,
     workGroupSizeSnippet: string, tileInfo: TileInfo) {
   return `
@@ -207,7 +207,7 @@ function getMainCodeWgsl(
 
   ${workGroupSizeSnippet}
   fn main([[builtin(local_invocation_id)]] localId : vec3<u32>,
-        [[builtin(global_invocation_id)]] globalId  : vec3<u32>) {
+        [[builtin(global_invocation_id)]] globalId : vec3<u32>) {
 
     let tileRow = localId.y * RowPerThread;
     let tileCol = localId.x;
@@ -225,7 +225,7 @@ function getMainCodeWgsl(
     // TODO: Remove it once the following bug is fixed.
     // https://bugs.chromium.org/p/tint/issues/detail?id=759
     for (var index = 0u; index < RowPerThread; index = index + 1u) {
-        acc[index] = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+        acc[index] = vec4<f32>(0.0);
     }
 
     var globalColA = tileCol;
@@ -279,7 +279,7 @@ export function makeMatMulPackedVec4SourceWgsl(
   };
   const kMatMulVec4TwoDimensionalSharedArray = getSharedArray2DCodeWgsl(
                                                    tileInfo) +
-      getMainCodeWgsl(varSnippet, getA2DCodeWgsl(), getB2DCodeWgsl(),
+      getPackedVec4MainCodeWgsl(varSnippet, getA2DCodeWgsl(), getB2DCodeWgsl(),
                       getCompute2DCodeWgsl(),
                       getWorkGroupSizeString(workGroupSize), tileInfo);
   return kMatMulVec4TwoDimensionalSharedArray;
@@ -288,30 +288,24 @@ export function makeMatMulPackedVec4SourceWgsl(
 export function makeMatMulVectorVec4SourceWgsl(
     workPerThread: number[], workGroupSize: [number, number, number],
     varSnippet: string): string {
-  console.log('makeMatMulPackedVec4SourceWgsl');
   const TileSize = workGroupSize[0];
 
   const kMatMulVec4OneDimensionalSharedArray = getSharedArray1DCodeWgsl() +
-      getMainCodeWgsl2(varSnippet, getA1DCodeWgsl(), getB1DCodeWgsl(),
+      getVectorVec4MainCodeWgsl(varSnippet, getA1DCodeWgsl(), getB1DCodeWgsl(),
                        getCompute1DCodeWgsl(),
                        getWorkGroupSizeString(workGroupSize), TileSize);
 
   return kMatMulVec4OneDimensionalSharedArray;
 }
 
-export function getMainCodeWgsl2(
+export function getVectorVec4MainCodeWgsl(
     varSnippet: string, getA: string, getB: string, computeAcc: string,
     workGroupSizeSnippet: string, TileSize: number): string {
   return `
-
-    // const int TileSize = int(gl_WorkGroupSize.x) * 4;
     let TileSize = ${TileSize * 4}u;
-
-    // shared vec4 mm_Asub[TileSize / 4];
-
     ${workGroupSizeSnippet}
     fn main([[builtin(local_invocation_id)]] localId : vec3<u32>,
-          [[builtin(global_invocation_id)]] globalId  : vec3<u32>) {
+          [[builtin(global_invocation_id)]] globalId : vec3<u32>) {
       let tileCol = localId.x;
       let globalCol = globalId.x;
       let globalRow = globalId.y;
@@ -319,7 +313,7 @@ export function getMainCodeWgsl2(
       let numTiles = (uniforms.dimInner - 1u) / TileSize + 1u;
 
       // Without this initialization strange values show up in acc.
-      var acc : vec4<f32>= vec4<f32>(0.0, 0.0, 0.0, 0.0);;
+      var acc : vec4<f32>= vec4<f32>(0.0);
 
       // Loop over shared dimension.
       for (var t = 0u; t < numTiles; t = t + 1u) {
@@ -484,13 +478,13 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
         `A[batch * batchASize + row * dimInner / 4 + col]` :
         `coordsInBounds(ivec2(row, col * 4), ivec2(dimAOuter, dimInner)) ?
             A[batch * batchASize + row * dimInner / 4 + col] :
-            vec4(0.0, 0.0, 0.0, 0.0)`;
+            vec4(0.0)`;
 
     const sampleB = this.fitB ?
         `B[batch * batchBSize + row * dimBOuter / 4 + col]` :
         `coordsInBounds(ivec2(row, col * 4), ivec2(dimInner, dimBOuter)) ?
             B[batch * batchBSize + row * dimBOuter / 4 + col] :
-            vec4(0.0, 0.0, 0.0, 0.0)`;
+            vec4(0.0)`;
 
     let activationSnippet = '', applyActivationSnippet = '';
     if (this.activation) {
@@ -557,16 +551,16 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     const sampleA = this.fitA ?
         `return A.numbers[batch * batchASize + row * uniforms.dimInner / 4u + col]` :
         `if (coordsInBounds2D(vec2<u32>(row, col * 4u), vec2<u32>(uniforms.dimAOuter, uniforms.dimInner))) {
-            return   A.numbers[batch * batchASize + row * uniforms.dimInner / 4u + col];
+            return A.numbers[batch * batchASize + row * uniforms.dimInner / 4u + col];
         }
-        return vec4<f32>(0.0, 0.0, 0.0, 0.0)`;
+        return vec4<f32>(0.0)`;
 
     const sampleB = this.fitB ?
-        `return  B.numbers[batch * batchBSize + row * uniforms.dimBOuter / 4u + col]` :
+        `return B.numbers[batch * batchBSize + row * uniforms.dimBOuter / 4u + col]` :
         `if( coordsInBounds2D(vec2<u32>(row, col * 4u), vec2<u32>(uniforms.dimInner, uniforms.dimBOuter))) {
-             return  B.numbers[batch * batchBSize + row * uniforms.dimBOuter / 4u + col];
+             return B.numbers[batch * batchBSize + row * uniforms.dimBOuter / 4u + col];
         }
-        return vec4<f32>(0.0, 0.0, 0.0, 0.0)`;
+        return vec4<f32>(0.0)`;
 
     let activationSnippet = '', applyActivationSnippet = '';
     if (this.activation) {
@@ -574,13 +568,13 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
           this.activation, this.isVec4, this.useWgsl);
       if (this.hasPreluActivationWeights) {
         activationSnippet =
-            `fn activation(a : vec4<f32>, outCoord :  vec3<i32>) -> vec4<f32> {
+            `fn activation(a : vec4<f32>, outCoord : vec3<i32>) -> vec4<f32> {
                   vec4 b = getPreluActivationWeightsAtOutCoordsByCoords(outCoord);
                   ${activationOp}
                 }`;
       } else {
         activationSnippet = `
-            fn activation(a : vec4<f32>, outCoord :  vec3<i32>) -> vec4<f32> {
+            fn activation(a : vec4<f32>, outCoord : vec3<i32>) -> vec4<f32> {
               ${activationOp}
             }`;
       }
@@ -593,21 +587,21 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     const varSnippet = `let dimInner = uniforms.aShape[2];`;
     const userCode = `
       ${activationSnippet}  
-      fn mm_readA(row : u32, col : u32,  globalId  : vec3<u32>) -> vec4<f32> {
+      fn mm_readA(row : u32, col : u32,  globalId : vec3<u32>) -> vec4<f32> {
         let batchASize = uniforms.aShape[1] * uniforms.aShape[2] / ${
         this.vecSize}u;
         let batch = globalId.z;
         ${sampleA};
       }
       
-      fn mm_readB(row : u32, col : u32,  globalId  : vec3<u32>) -> vec4<f32> {
+      fn mm_readB(row : u32, col : u32,  globalId : vec3<u32>) -> vec4<f32> {
         let batchBSize = uniforms.bShape[1] * uniforms.bShape[2] / ${
         this.vecSize}u;
         let batch = globalId.z;
         ${sampleB};
       }
       
-      fn mm_write(row : u32, col : u32, value : vec4<f32>, globalId  : vec3<u32>) {
+      fn mm_write(row : u32, col : u32, value : vec4<f32>, globalId : vec3<u32>) {
         if (row < uniforms.aShape[1] && col * 4u < uniforms.bShape[2])
         {
           let batch = u32(globalId.z);
