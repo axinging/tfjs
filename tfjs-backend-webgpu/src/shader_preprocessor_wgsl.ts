@@ -108,15 +108,14 @@ export function makeShader(
         numbers: array<${mapToTypesWgsl(outputData.dtype, program.isVec4)}>;
     };
 
-    [[group(0), binding(0)]] var<storage> result : [[access(write)]] Matrix0;
+    [[group(0), binding(0)]] var<storage, write> result : Matrix0;
   `);
   program.variableNames.forEach((x, i) => {
     prefixSnippets.push(`
     [[block]] struct Matrix${1 + i} {
       numbers: array<${mapToTypesWgsl(inputInfo[i].dtype, program.isVec4)}>;
     };
-    [[group(0), binding(${1 + i})]] var<storage> ${
-        x} : [[access(read)]] Matrix${1 + i};
+    [[group(0), binding(${1 + i})]] var<storage, read> ${x} : Matrix${1 + i};
     `);
   });
 
