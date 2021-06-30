@@ -61,7 +61,8 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
         elementsPerThread);
     this.convInfo = convInfo;
     this.addBias = addBias;
-    this.useWgsl = getUseWgsl();
+    this.useWgsl = false;//
+    console.log(getUseWgsl());
     this.activation = activation;
     this.hasPreluActivationWeights = hasPreluActivationWeights;
     this.hasLeakyreluAlpha = hasLeakyreluAlpha;
@@ -245,33 +246,74 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
 
   getUserCodeWgsl(): string {
     const elementsPerThread: [number, number, number] = [4, 4, 1];
-    const varSnippet = `var dimInner : u32 = uniforms.dimInner;//uniforms.filterDims[0] * uniforms.filterDims[1] * uniforms.xShape[3];`;
-    const matMulSource =
-        makeMatMulPackedVec4SourceWgsl(elementsPerThread, this.workGroupSize, varSnippet);
+    const varSnippet =
+        `var dimInner : u32 = uniforms.dimInner;//uniforms.filterDims[0] * uniforms.filterDims[1] * uniforms.xShape[3];`;
+    const matMulSource = makeMatMulPackedVec4SourceWgsl(
+        elementsPerThread, this.workGroupSize, varSnippet);
 
     const remainder = this.convInfo.inChannels % 4;
     if (remainder !== 0) {
-      throw Error(`remainder != 0 is not yet supported`);
+      //throw Error(`remainder != 0 is not yet supported`);
     }
-    const remainderSnippet =
-        `// The bounds checking is always needed since we use it to pad zero for
-        // the 'same' padding type.
-        if (coordsInBounds4D(coord, uniforms.xShape)) {
-          resData = x.numbers[getFlatIndex4D(coord, uniforms.xShape) / 4u];
+    // Below code only applys to valid padding type.
+    // TODO(WSGL): sampleAWithRemainder is not tested.
+    const sampleAWithRemainder =
+        `let flatIndex = getFlatIndex4D(coord, uniforms.xShape);
+        let divBy4Remainder = flatIndex % 4u;
+        let divBy4Index = flatIndex / 4u;
+        let curData = x.numbers[divBy4Index];
+        if (divBy4Remainder == 0u) {
+          temp = curData;
         } else {
-          resData = vec4<f32>(0.0, 0.0, 0.0, 0.0); }`;
+          // TODO: This could end up being a redundant load with another one in
+          // the same shader invocation. Perhaps there's an opportunity for
+          // optimization
+          let nextData = x.numbers[divBy4Index + 1u];
+          if (divBy4Remainder == 1u) {
+            temp = vec4<f32>(curData.yzw, nextData.x);
+          } elseif (divBy4Remainder == 2u) {
+            temp = vec4<f32>(curData.zw, nextData.xy);
+          } elseif (divBy4Remainder == 3u) {
+            temp = vec4<f32>(curData.w, nextData.xyz);
+          }
+        }
+        `;
 
-    const readASnippet = `let outRow : u32 = r / uniforms.outShape[2];
-        let outCol : u32 = r % uniforms.outShape[2];
-        let WRow : u32 = c / (uniforms.filterDims[1] * uniforms.xShape[3]);
-        let WCol : u32 = (c / uniforms.xShape[3]) % uniforms.filterDims[1];
-        let inChCoord : u32 = c % uniforms.xShape[3];
-        let coord : vec4<u32> = vec4<u32>(
+    const remainderSnippet = remainder === 0 ?
+        `// The bounds checking is always needed since we use it to pad zero for
+          // the 'same' padding type.
+          if (coordsInBounds4D(coord, uniforms.xShape)) {
+            resData = x.numbers[getFlatIndex4D(coord, uniforms.xShape) / 4u];
+          } else {
+            resData = vec4<f32>(0.0, 0.0, 0.0, 0.0); }` :
+        `var temp = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+          ${sampleAWithRemainder}
+          resData = temp;
+          if (WCol == (uniforms.filterDims[1] - 1u)) {
+            coord = vec4<u32>(
+              coord.x, coord.y + 1u, coord.z + 1u - uniforms.filterDims[1], 0u);
+            ${sampleAWithRemainder}
+            if (inChCoord == 0u) {
+              resData = vec4<f32>(resData.xyz, temp.x);
+            } elseif (inChCoord == 1u) {
+              resData = vec4<f32>(resData.xy, temp.xy);
+            } else {
+              resData = vec4<f32>(resData.x, temp.xyz);
+            }
+          }
+          `;
+
+    const readASnippet = `let outRow = r / uniforms.outShape[2];
+        let outCol = r % uniforms.outShape[2];
+        let WRow = c / (uniforms.filterDims[1] * uniforms.xShape[3]);
+        let WCol = (c / uniforms.xShape[3]) % uniforms.filterDims[1];
+        let inChCoord = c % uniforms.xShape[3];
+        var coord = vec4<u32>(
             batch,
             outRow * uniforms.stride[0] + uniforms.dilation[0] * WRow - uniforms.pad[0],
             outCol * uniforms.stride[1] + uniforms.dilation[1] * WCol - uniforms.pad[1],
             inChCoord);
-        var resData : vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+        var resData = vec4<f32>(0.0, 0.0, 0.0, 0.0);
         ${remainderSnippet}
         return resData;`;
 
@@ -296,19 +338,19 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
           this.activation, this.isVec4, this.useWgsl);
       if (this.hasPreluActivationWeights) {
         activationSnippet =
-            `fn activation(a : vec4<f32>, outCoord : vec4<u32>) -> vec4<f32>{
-          let b: vec4<f32> = getPreluActivationWeightsAtOutCoordsByCoords(outCoord);
+            `fn activation(a : vec4<f32>, outCoord : vec4<u32>) -> vec4<f32> {
+          let b = getPreluActivationWeightsAtOutCoordsByCoords(outCoord);
           ${activationOp}
         }`;
       } else if (this.hasLeakyreluAlpha) {
         activationSnippet = `fn activation(a: vec4<f32>) ->vec4<f32> {
-          let b : vec4<f32> = getLeakyreluAlphaAtOutCoords();
+          let b = getLeakyreluAlphaAtOutCoords();
           ${activationOp}
         }`;
         throw new Error('Leakyrelu is not supported.');
       } else {
         activationSnippet = `
-        fn activation(a : vec4<f32>, outCoord : vec4<u32>) -> vec4<f32>{
+        fn activation(a : vec4<f32>, outCoord : vec4<u32>) -> vec4<f32> {
           ${activationOp}
         }`;
       }
@@ -334,11 +376,11 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
         }
 
         fn mm_write(row : u32, col : u32, valueInput : vec4<f32>, globalId  : vec3<u32>) {
-          var batch : u32 = u32(globalId.z);
-          var value  : vec4<f32> = valueInput;
+          var batch = globalId.z;
+          var value = valueInput;
           if (row < uniforms.dimAOuter && col * 4u < uniforms.dimBOuter)
           {
-            let outCoord : vec4<u32> = vec4<u32>(
+            let outCoord = vec4<u32>(
               batch,
               row / uniforms.outShape[2],
               row % uniforms.outShape[2],
