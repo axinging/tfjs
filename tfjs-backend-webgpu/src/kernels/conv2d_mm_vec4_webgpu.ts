@@ -270,7 +270,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
   getUserCodeWgsl(): string {
     const elementsPerThread: [number, number, number] = [4, 4, 1];
     const varSnippet =
-        `var dimInner : u32 = uniforms.dimInner;//uniforms.filterDims[0] * uniforms.filterDims[1] * uniforms.xShape[3];`;
+        `var dimInner : u32 = uniforms.dimInner;`;
     const matMulSource = makeMatMulPackedVec4SourceWgsl(
         elementsPerThread, this.workGroupSize, varSnippet);
 
