@@ -244,6 +244,29 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     return userCode;
   }
 
+  getsampleAWithRemainderWgsl(index: number) : string {
+    return         `let flatIndex${index} = getFlatIndex4D(coord, uniforms.xShape);
+    let divBy4Remainder${index} = flatIndex % 4u;
+    let divBy4Index${index} = flatIndex / 4u;
+    let curData${index} = x.numbers[divBy4Index];
+    if (divBy4Remainder == 0u) {
+      temp = curData;
+    } else {
+      // TODO: This could end up being a redundant load with another one in
+      // the same shader invocation. Perhaps there's an opportunity for
+      // optimization
+      let nextData${index} = x.numbers[divBy4Index + 1u];
+      if (divBy4Remainder == 1u) {
+        temp = vec4<f32>(curData.yzw, nextData.x);
+      } elseif (divBy4Remainder == 2u) {
+        temp = vec4<f32>(curData.zw, nextData.xy);
+      } elseif (divBy4Remainder == 3u) {
+        temp = vec4<f32>(curData.w, nextData.xyz);
+      }
+    }
+    `;
+  }
+
   getUserCodeWgsl(): string {
     const elementsPerThread: [number, number, number] = [4, 4, 1];
     const varSnippet =
@@ -257,27 +280,8 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     }
     // Below code only applys to valid padding type.
     // TODO(WSGL): sampleAWithRemainder is not tested.
-    const sampleAWithRemainder =
-        `let flatIndex = getFlatIndex4D(coord, uniforms.xShape);
-        let divBy4Remainder = flatIndex % 4u;
-        let divBy4Index = flatIndex / 4u;
-        let curData = x.numbers[divBy4Index];
-        if (divBy4Remainder == 0u) {
-          temp = curData;
-        } else {
-          // TODO: This could end up being a redundant load with another one in
-          // the same shader invocation. Perhaps there's an opportunity for
-          // optimization
-          let nextData = x.numbers[divBy4Index + 1u];
-          if (divBy4Remainder == 1u) {
-            temp = vec4<f32>(curData.yzw, nextData.x);
-          } elseif (divBy4Remainder == 2u) {
-            temp = vec4<f32>(curData.zw, nextData.xy);
-          } elseif (divBy4Remainder == 3u) {
-            temp = vec4<f32>(curData.w, nextData.xyz);
-          }
-        }
-        `;
+    //const sampleAWithRemainder =
+
 
     const remainderSnippet = remainder === 0 ?
         `// The bounds checking is always needed since we use it to pad zero for
@@ -287,12 +291,12 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
           } else {
             resData = vec4<f32>(0.0, 0.0, 0.0, 0.0); }` :
         `var temp = vec4<f32>(0.0, 0.0, 0.0, 0.0);
-          ${sampleAWithRemainder}
+          ${this.getsampleAWithRemainderWgsl(1)}
           resData = temp;
           if (WCol == (uniforms.filterDims[1] - 1u)) {
             coord = vec4<u32>(
               coord.x, coord.y + 1u, coord.z + 1u - uniforms.filterDims[1], 0u);
-            ${sampleAWithRemainder}
+              ${this.getsampleAWithRemainderWgsl(2)}
             if (inChCoord == 0u) {
               resData = vec4<f32>(resData.xyz, temp.x);
             } elseif (inChCoord == 1u) {
