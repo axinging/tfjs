@@ -244,7 +244,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     return userCode;
   }
 
-  getsampleAWithRemainderWgsl(index: number) : string {
+  getSampleAWithRemainderWgsl(index: number) : string {
     return         `let flatIndex${index} = getFlatIndex4D(coord, uniforms.xShape);
     let divBy4Remainder${index} = flatIndex % 4u;
     let divBy4Index${index} = flatIndex / 4u;
@@ -270,19 +270,12 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
   getUserCodeWgsl(): string {
     const elementsPerThread: [number, number, number] = [4, 4, 1];
     const varSnippet =
-        `var dimInner : u32 = uniforms.dimInner;`;
+        `var dimInner = uniforms.dimInner;`;
     const matMulSource = makeMatMulPackedVec4SourceWgsl(
         elementsPerThread, this.workGroupSize, varSnippet);
 
     const remainder = this.convInfo.inChannels % 4;
-    if (remainder !== 0) {
-      //throw Error(`remainder != 0 is not yet supported`);
-    }
     // Below code only applys to valid padding type.
-    // TODO(WSGL): sampleAWithRemainder is not tested.
-    //const sampleAWithRemainder =
-
-
     const remainderSnippet = remainder === 0 ?
         `// The bounds checking is always needed since we use it to pad zero for
           // the 'same' padding type.
@@ -291,12 +284,12 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
           } else {
             resData = vec4<f32>(0.0, 0.0, 0.0, 0.0); }` :
         `var temp = vec4<f32>(0.0, 0.0, 0.0, 0.0);
-          ${this.getsampleAWithRemainderWgsl(1)}
+          ${this.getSampleAWithRemainderWgsl(1)}
           resData = temp;
           if (WCol == (uniforms.filterDims[1] - 1u)) {
             coord = vec4<u32>(
               coord.x, coord.y + 1u, coord.z + 1u - uniforms.filterDims[1], 0u);
-              ${this.getsampleAWithRemainderWgsl(2)}
+              ${this.getSampleAWithRemainderWgsl(2)}
             if (inChCoord == 0u) {
               resData = vec4<f32>(resData.xyz, temp.x);
             } elseif (inChCoord == 1u) {
@@ -347,7 +340,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
           ${activationOp}
         }`;
       } else if (this.hasLeakyreluAlpha) {
-        activationSnippet = `fn activation(a: vec4<f32>) ->vec4<f32> {
+        activationSnippet = `fn activation(a: vec4<f32>) -> vec4<f32> {
           let b = getLeakyreluAlphaAtOutCoords();
           ${activationOp}
         }`;
@@ -369,9 +362,9 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     const userCode = `
         ${activationSnippet}
         fn mm_readA(row : u32, col : u32,  globalId  : vec3<u32>) -> vec4<f32> {
-          let r : u32 = u32(row);
-          let c : u32 = u32(col * 4u);
-          var batch : u32 = u32(globalId.z);
+          let r = row;
+          let c = col * 4u;
+          var batch = globalId.z;
           ${sampleA}
         }
 
