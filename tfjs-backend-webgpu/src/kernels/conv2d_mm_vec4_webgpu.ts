@@ -246,22 +246,22 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
 
   getSampleAWithRemainderWgsl(index: number) : string {
     return         `let flatIndex${index} = getFlatIndex4D(coord, uniforms.xShape);
-    let divBy4Remainder${index} = flatIndex % 4u;
-    let divBy4Index${index} = flatIndex / 4u;
-    let curData${index} = x.numbers[divBy4Index];
-    if (divBy4Remainder == 0u) {
-      temp = curData;
+    let divBy4Remainder${index} = flatIndex${index} % 4u;
+    let divBy4Index${index} = flatIndex${index} / 4u;
+    let curData${index} = x.numbers[divBy4Index${index}];
+    if (divBy4Remainder${index} == 0u) {
+      temp = curData${index};
     } else {
       // TODO: This could end up being a redundant load with another one in
       // the same shader invocation. Perhaps there's an opportunity for
       // optimization
-      let nextData${index} = x.numbers[divBy4Index + 1u];
-      if (divBy4Remainder == 1u) {
-        temp = vec4<f32>(curData.yzw, nextData.x);
-      } elseif (divBy4Remainder == 2u) {
-        temp = vec4<f32>(curData.zw, nextData.xy);
-      } elseif (divBy4Remainder == 3u) {
-        temp = vec4<f32>(curData.w, nextData.xyz);
+      let nextData${index} = x.numbers[divBy4Index${index} + 1u];
+      if (divBy4Remainder${index} == 1u) {
+        temp = vec4<f32>(curData${index}.yzw, nextData${index}.x);
+      } elseif (divBy4Remainder${index} == 2u) {
+        temp = vec4<f32>(curData${index}.zw, nextData${index}.xy);
+      } elseif (divBy4Remainder${index} == 3u) {
+        temp = vec4<f32>(curData${index}.w, nextData${index}.xyz);
       }
     }
     `;
@@ -361,14 +361,14 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
 
     const userCode = `
         ${activationSnippet}
-        fn mm_readA(row : u32, col : u32,  globalId : vec3<u32>) -> vec4<f32> {
+        fn mm_readA(row : u32, col : u32, globalId : vec3<u32>) -> vec4<f32> {
           let r = row;
           let c = col * 4u;
           var batch = globalId.z;
           ${sampleA}
         }
 
-        fn mm_readB(row : u32, col : u32) -> vec4<f32> {
+        fn mm_readB(row : u32, col : u32, globalId : vec3<u32>) -> vec4<f32> {
           ${sampleB}
         }
 
