@@ -107,7 +107,7 @@ export function batchMatMulImpl({
         a3dShape, [batchDim, outerShapeA, outerShapeB],
         env().get('WEBGPU_MATMUL_WORK_PER_THREAD') as number, bias, activation,
         preluActivationWeights);
-    if ((program as MatMulPackedVec4Program).useWgsl) {
+    if (program.useWgsl) {
       const dimAOuter = a.shape[1];
       const dimInner = a.shape[2];
       const dimBOuter = b.shape[2];
