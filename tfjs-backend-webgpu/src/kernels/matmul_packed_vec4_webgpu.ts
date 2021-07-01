@@ -448,6 +448,7 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     this.aShape = aShape;
     this.addBias = addBias;
     this.useWgsl = getUseWgsl();
+    console.log(this.useWgsl);
     this.activation = activation;
     this.hasPreluActivationWeights = hasPreluActivationWeights;
 
