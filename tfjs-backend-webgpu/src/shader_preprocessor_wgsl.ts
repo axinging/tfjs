@@ -251,39 +251,23 @@ function getSetOutputSnippet(
       snippet += `
       fn setOutput(${
           dims.map(d => `${d} : u32`).join(', ')}, value : vec4<f32>) {
-<<<<<<< HEAD
         let flatIndex = getOutputFlatIndex(${type}(${dims.join(', ')}));
-=======
-        let flatIndex : u32 = getOutputFlatIndex(${type}(${dims.join(', ')}));
->>>>>>> d9b87ecd ([DRAFT] Add WGSL support)
         setOutputFlat(flatIndex / 4u, value);
       }
       fn setOutputVectorI32(${
           dims.map(d => `${d} : u32`).join(', ')}, value : vec4<i32>) {
-<<<<<<< HEAD
         let flatIndex = getOutputFlatIndex(${type}(${dims.join(', ')}));
-=======
-        let flatIndex : u32 = getOutputFlatIndex(${type}(${dims.join(', ')}));
->>>>>>> d9b87ecd ([DRAFT] Add WGSL support)
         setOutputFlatI32(flatIndex / 4u, value);
       }
     `;
     } else {
       snippet += `
       fn setOutput(${dims.map(d => `${d} : u32`).join(', ')}, value : f32) {
-<<<<<<< HEAD
         let flatIndex = getOutputFlatIndex(${type}(${dims.join(', ')}));
         setOutputFlat(flatIndex, value);
       }
       fn setOutputI32(${dims.map(d => `${d} : u32`).join(', ')}, value : i32) {
         let flatIndex = getOutputFlatIndex(${type}(${dims.join(', ')}));
-=======
-        let flatIndex : u32 = getOutputFlatIndex(${type}(${dims.join(', ')}));
-        setOutputFlat(flatIndex, value);
-      }
-      fn setOutputI32(${dims.map(d => `${d} : u32`).join(', ')}, value : i32) {
-        let flatIndex : u32 = getOutputFlatIndex(${type}(${dims.join(', ')}));
->>>>>>> d9b87ecd ([DRAFT] Add WGSL support)
         setOutputFlatI32(flatIndex, value);
       }
     `;
