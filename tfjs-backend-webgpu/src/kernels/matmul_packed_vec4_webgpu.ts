@@ -196,7 +196,7 @@ function getCompute2DCodeWgsl() {
 
 function getPackedVec4MainCodeWgsl(
     varSnippet: string, getA: string, getB: string, computeAcc: string,
-    workGroupSizeSnippet: string, tileInfo: TileInfo) {
+    workGroupSizeSnippet: string,workGroupSize: [number, number, number], tileInfo: TileInfo) {
   return `
   let RowPerThread = ${tileInfo.RowPerThread}u;
   let ColPerThread = ${
@@ -217,7 +217,7 @@ function getPackedVec4MainCodeWgsl(
     ${varSnippet}
     let numTiles = (dimInner - 1u) / TileInner + 1u;
 
-    var acc: array<vec4<f32>, 4>;
+    var acc: array<vec4<f32>, ${tileInfo.RowPerThread}>;
     var ACached : vec4<f32>;
     var BCached : array<vec4<f32>, 4>;
 
@@ -228,11 +228,10 @@ function getPackedVec4MainCodeWgsl(
         acc[index] = vec4<f32>(0.0);
     }
 
-    var globalColA = tileCol;
-    let RowPerThreadB = TileInner / 16u;
-    let tileRowB = localId.y * RowPerThreadB;
-
     // Loop over shared dimension.
+    var globalColA = tileCol;
+    let RowPerThreadB = TileInner / ${workGroupSize[1]}u;
+    let tileRowB = localId.y * RowPerThreadB;
     for (var t = 0u; t < numTiles; t = t + 1u) {
         // Load one tile of A into local memory.
         for (var innerRow = 0u; innerRow < RowPerThread; innerRow = innerRow + 1u) {
@@ -277,11 +276,12 @@ export function makeMatMulPackedVec4SourceWgsl(
     TileBOuter: workGroupSize[0] * colPerThread,
     TileInner: tileBOuter
   };
+  console.log("makeMatMulPackedVec4SourceWgsl");
   const kMatMulVec4TwoDimensionalSharedArray = getSharedArray2DCodeWgsl(
                                                    tileInfo) +
       getPackedVec4MainCodeWgsl(varSnippet, getA2DCodeWgsl(), getB2DCodeWgsl(),
                       getCompute2DCodeWgsl(),
-                      getWorkGroupSizeString(workGroupSize), tileInfo);
+                      getWorkGroupSizeString(workGroupSize), workGroupSize,  tileInfo);
   return kMatMulVec4TwoDimensionalSharedArray;
 }
 
@@ -289,7 +289,7 @@ export function makeMatMulVectorVec4SourceWgsl(
     workPerThread: number[], workGroupSize: [number, number, number],
     varSnippet: string): string {
   const TileSize = workGroupSize[0];
-
+  console.log("makeMatMulVectorVec4SourceWgsl");
   const kMatMulVec4OneDimensionalSharedArray = getSharedArray1DCodeWgsl() +
       getVectorVec4MainCodeWgsl(varSnippet, getA1DCodeWgsl(), getB1DCodeWgsl(),
                        getCompute1DCodeWgsl(),

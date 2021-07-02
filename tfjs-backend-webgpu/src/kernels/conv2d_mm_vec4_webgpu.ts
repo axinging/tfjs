@@ -62,7 +62,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     this.convInfo = convInfo;
     this.addBias = addBias;
     this.useWgsl = getUseWgsl();
-    console.log(this.useWgsl);
+    console.log(getUseWgsl());
     this.activation = activation;
     this.hasPreluActivationWeights = hasPreluActivationWeights;
     this.hasLeakyreluAlpha = hasLeakyreluAlpha;

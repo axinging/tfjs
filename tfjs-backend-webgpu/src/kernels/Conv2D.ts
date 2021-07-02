@@ -71,10 +71,11 @@ export function conv2d(
       const dimBOuter = convInfo.outShape[3];
       const dimInner =
           convInfo.filterHeight * convInfo.filterWidth * convInfo.inShape[3];
+      console.log(" dimAOuter ="+ dimAOuter+ " dimBOuter ="+ dimBOuter+ " dimInner ="+ dimInner);
       dimensions.push(
-          {type: 'int32', data: [dimAOuter]},
-          {type: 'int32', data: [dimBOuter]},
-          {type: 'int32', data: [dimInner]});
+          {type: 'uint32', data: [dimAOuter]},
+          {type: 'uint32', data: [dimBOuter]},
+          {type: 'uint32', data: [dimInner]});
     }
   } else {
     program = new Conv2DMMProgram(convInfo);

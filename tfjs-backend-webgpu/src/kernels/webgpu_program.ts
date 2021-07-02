@@ -78,6 +78,7 @@ export const compileProgram =
       if (program.useWgsl) {
         source = shader_preprocessor_wgsl.makeShader(
             inputsData, outputData, program, isFromPixel);
+        console.log(source);
         module = device.createShaderModule({code: source});
       } else {
         source = shader_preprocessor.makeShader(
@@ -86,6 +87,7 @@ export const compileProgram =
         if (result.data.length === 0) {
           throw new Error('Shader compilation failed');
         }
+        console.log(source);
         result.free();
         module = device.createShaderModule({code: result.data});
       }
